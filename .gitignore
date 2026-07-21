@@ -33,3 +33,6 @@ dist/
 *.war
 *.zip
 *.tar.gz
+
+# Track Gradle wrapper JAR (not excluded by *.jar above)
+!gradle/wrapper/gradle-wrapper.jar

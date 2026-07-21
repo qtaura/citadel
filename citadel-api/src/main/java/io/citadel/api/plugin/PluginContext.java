@@ -2,6 +2,7 @@ package io.citadel.api.plugin;
 
 import io.citadel.api.service.Logger;
 import io.citadel.api.service.Service;
+import java.nio.file.Path;
 import java.util.Optional;
 
 /**
@@ -52,4 +53,20 @@ public interface PluginContext {
    * @return plugin metadata (never null)
    */
   PluginMetadata getPluginMetadata();
+
+  /**
+   * Returns the plugin's private data directory.
+   *
+   * <p>This directory is created by the core before {@link Plugin#onLoad(PluginContext)} is called.
+   * Plugins should use this directory to store configuration files, cached data, persistent state,
+   * or any other files they need. The directory is namespaced by plugin name and located within the
+   * Citadel data directory.
+   *
+   * <p>Plugins must not assume this directory is empty on startup. It may contain files from
+   * previous runs. Plugins must not write files outside this directory.
+   *
+   * @return the absolute path to the plugin's data directory (never null; directory is guaranteed
+   *     to exist)
+   */
+  Path getDataFolder();
 }

@@ -17,7 +17,7 @@ import java.util.Objects;
  *
  * <p>Thread safety: this class is thread-safe (immutable). Subclasses must also be thread-safe.
  */
-public class Event {
+public abstract class Event {
 
   private final Instant timestamp;
 

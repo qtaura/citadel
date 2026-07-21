@@ -11,6 +11,7 @@
         <exclude name="JUnitTestContainsTooManyAsserts" />
         <exclude name="JUnitAssertionsShouldIncludeMessage" />
         <exclude name="JUnitTestsShouldIncludeAssert" />
+        <exclude name="AbstractClassWithoutAbstractMethod" />
     </rule>
 
     <rule ref="category/java/design.xml">

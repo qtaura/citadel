@@ -31,16 +31,20 @@ public interface EventBus {
   /**
    * Registers a handler for a specific event type.
    *
-   * <p>The handler receives all events of the specified type (and subtypes, depending on the
-   * implementation). If the same handler is registered twice for the same event type, the second
-   * registration is ignored.
+   * <p>The handler receives all events that are instances of the specified type, including
+   * subtypes. For example, subscribing to {@code Event.class} will receive every event published
+   * through this bus.
+   *
+   * <p>If the same handler instance is registered twice for the same event type, the second
+   * registration is ignored and the original subscription is returned.
    *
    * @param <T> the event type
    * @param type the event class to subscribe to (not null)
    * @param handler the handler to invoke when an event is published (not null)
+   * @return a {@link Subscription} handle for cancelling this subscription
    * @throws NullPointerException if type or handler is null
    */
-  <T extends Event> void subscribe(Class<T> type, EventHandler<T> handler);
+  <T extends Event> Subscription subscribe(Class<T> type, EventHandler<T> handler);
 
   /**
    * Removes a previously registered handler.

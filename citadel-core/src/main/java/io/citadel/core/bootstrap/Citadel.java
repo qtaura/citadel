@@ -1,27 +1,11 @@
 package io.citadel.core.bootstrap;
 
-import io.citadel.api.service.AccountManager;
-import io.citadel.api.service.Configuration;
-import io.citadel.api.service.Scheduler;
-import io.citadel.core.service.NoOpAccountManager;
-import io.citadel.core.service.NoOpConfiguration;
-import io.citadel.core.service.NoOpScheduler;
+import java.io.PrintStream;
 
 /**
  * Main entry point for the Citadel server.
  *
- * <p>Bootstrap sequence:
- *
- * <ol>
- *   <li>Parse CLI arguments
- *   <li>Print banner / version if requested
- *   <li>Create the {@link Lifecycle} state machine
- *   <li>Create the {@link ServiceRegistry} and register core services
- *   <li>Start the lifecycle ({@link LifecycleState#STARTING})
- *   <li>Complete startup ({@link LifecycleState#RUNNING})
- *   <li>Block on {@link Lifecycle#awaitShutdown()} until the JVM is told to stop
- *   <li>Print termination message and exit 0
- * </ol>
+ * <p>This class handles CLI arguments and delegates the bootstrap sequence to {@link Bootstrap}.
  */
 public final class Citadel {
 
@@ -36,33 +20,20 @@ public final class Citadel {
    * @param args command-line arguments
    */
   public static void main(String[] args) {
-    if (handleHelpOrVersion(args)) {
-      return;
-    }
-
-    Lifecycle lifecycle = new Lifecycle();
-    ServiceRegistry serviceRegistry = new ServiceRegistry();
-    registerCoreServices(serviceRegistry);
-
-    System.out.println("[" + NAME + "] Starting " + NAME + " v" + VERSION + " ...");
-    lifecycle.start();
-
-    lifecycle.finishStartup();
-    System.out.println("[" + NAME + "] " + NAME + " v" + VERSION + " started successfully.");
-
     try {
-      lifecycle.awaitShutdown();
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
+      if (handleHelpOrVersion(args)) {
+        return;
+      }
+    } catch (IllegalArgumentException e) {
+      System.exit(1);
     }
 
-    System.out.println("[" + NAME + "] " + NAME + " v" + VERSION + " terminated.");
-    System.exit(0);
+    new Bootstrap().start();
   }
 
   /**
-   * Handles --help and --version arguments. Prints usage or version to stdout and returns true if
-   * the application should exit after this call.
+   * Handles --help and --version arguments. Prints usage or version and returns true if the
+   * application should exit after this call.
    *
    * @param args command-line arguments
    * @return true if the caller should exit immediately
@@ -72,7 +43,7 @@ public final class Citadel {
       switch (arg) {
         case "--help":
         case "-h":
-          printUsage();
+          printUsage(System.out);
           return true;
         case "--version":
         case "-v":
@@ -80,24 +51,17 @@ public final class Citadel {
           return true;
         default:
           System.err.println("[" + NAME + "] Unknown argument: " + arg);
-          printUsage();
-          System.exit(1);
-          return true;
+          printUsage(System.err);
+          throw new IllegalArgumentException("Unknown argument: " + arg);
       }
     }
     return false;
   }
 
-  private static void printUsage() {
-    System.out.println("Usage: java -jar citadel-core.jar [options]");
-    System.out.println("Options:");
-    System.out.println("  --help, -h      Print this help message and exit");
-    System.out.println("  --version, -v   Print version information and exit");
-  }
-
-  private static void registerCoreServices(ServiceRegistry registry) {
-    registry.register(Configuration.class, new NoOpConfiguration());
-    registry.register(Scheduler.class, new NoOpScheduler());
-    registry.register(AccountManager.class, new NoOpAccountManager());
+  private static void printUsage(PrintStream out) {
+    out.println("Usage: java -jar citadel-core.jar [options]");
+    out.println("Options:");
+    out.println("  --help, -h      Print this help message and exit");
+    out.println("  --version, -v   Print version information and exit");
   }
 }

@@ -1,6 +1,7 @@
 package io.citadel.core.bootstrap;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -17,7 +18,7 @@ public final class Lifecycle {
   private final AtomicReference<LifecycleState> state =
       new AtomicReference<>(LifecycleState.CREATED);
   private final CountDownLatch terminatedLatch = new CountDownLatch(1);
-  private boolean shutdownHookRegistered;
+  private final AtomicBoolean shutdownHookRegistered = new AtomicBoolean(false);
 
   /**
    * Transitions from {@link LifecycleState#CREATED} → {@link LifecycleState#STARTING}.
@@ -79,10 +80,9 @@ public final class Lifecycle {
   }
 
   private void registerShutdownHook() {
-    if (shutdownHookRegistered) {
+    if (!shutdownHookRegistered.compareAndSet(false, true)) {
       return;
     }
-    shutdownHookRegistered = true;
     Runtime.getRuntime()
         .addShutdownHook(
             new Thread(

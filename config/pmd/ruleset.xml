@@ -17,6 +17,7 @@
         <exclude name="LawOfDemeter" />
         <exclude name="DataClass" />
         <exclude name="AvoidThrowingRawExceptionTypes" />
+        <exclude name="LoosePackageCoupling" />
     </rule>
 
     <rule ref="category/java/errorprone.xml">

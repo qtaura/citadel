@@ -12,6 +12,8 @@
         <exclude name="JUnitAssertionsShouldIncludeMessage" />
         <exclude name="JUnitTestsShouldIncludeAssert" />
         <exclude name="AbstractClassWithoutAbstractMethod" />
+        <exclude name="SystemPrintln" />
+        <exclude name="UseVarargs" />
     </rule>
 
     <rule ref="category/java/design.xml">
@@ -23,6 +25,7 @@
 
     <rule ref="category/java/errorprone.xml">
         <exclude name="NullAssignment" />
+        <exclude name="DoNotTerminateVM" />
     </rule>
 
     <rule ref="category/java/performance.xml" />

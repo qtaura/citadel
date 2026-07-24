@@ -30,6 +30,8 @@ subprojects {
 
     tasks.withType<Test> {
         useJUnitPlatform()
+        minHeapSize = "128m"
+        maxHeapSize = "512m"
     }
 
     plugins.apply("pmd")

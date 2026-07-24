@@ -2,8 +2,10 @@ package io.citadel.core.bootstrap;
 
 import io.citadel.api.service.AccountManager;
 import io.citadel.api.service.Configuration;
+import io.citadel.api.service.Logger;
 import io.citadel.api.service.Scheduler;
 import io.citadel.core.config.CitadelConfiguration;
+import io.citadel.core.logging.LoggingService;
 import io.citadel.core.plugin.PluginManager;
 import io.citadel.core.service.NoOpAccountManager;
 import io.citadel.core.service.NoOpScheduler;
@@ -13,8 +15,8 @@ import java.nio.file.Path;
  * Owns the Citadel startup sequence.
  *
  * <p>Created by {@link Citadel#main(String[])} after CLI arguments are handled. Owns the {@link
- * Lifecycle} state machine, {@link ServiceRegistry}, and {@link PluginManager}, and wires them
- * together through the bootstrap sequence.
+ * Lifecycle} state machine, {@link ServiceRegistry}, {@link LoggingService}, and {@link
+ * PluginManager}, and wires them together through the bootstrap sequence.
  */
 public final class Bootstrap {
 
@@ -24,19 +26,24 @@ public final class Bootstrap {
 
   private final Lifecycle lifecycle;
   private final ServiceRegistry serviceRegistry;
+  private final LoggingService loggingService;
 
   public Bootstrap() {
     this.lifecycle = new Lifecycle();
     this.serviceRegistry = new ServiceRegistry();
+    this.loggingService = new LoggingService();
   }
 
   /** Runs the full bootstrap sequence. Blocks until shutdown is requested. */
   public void start() {
-    System.out.println("[" + NAME + "] Starting " + NAME + " v" + VERSION + " ...");
-
     CitadelConfiguration configuration = new CitadelConfiguration(Path.of("citadel.yml"));
     configuration.load();
     serviceRegistry.register(Configuration.class, configuration);
+
+    loggingService.initialize(configuration);
+    Logger rootLogger = loggingService.getRootLogger();
+    serviceRegistry.register(Logger.class, rootLogger);
+    rootLogger.info("Starting {} v{} ...", NAME, VERSION);
 
     registerNoOpServices(serviceRegistry);
 
@@ -44,7 +51,11 @@ public final class Bootstrap {
 
     PluginManager pluginManager =
         new PluginManager(
-            serviceRegistry, Path.of("plugins"), Path.of("plugins-data"), API_VERSION);
+            serviceRegistry,
+            loggingService,
+            Path.of("plugins"),
+            Path.of("plugins-data"),
+            API_VERSION);
 
     pluginManager.loadPlugins();
     pluginManager.enablePlugins();
@@ -55,10 +66,11 @@ public final class Bootstrap {
             new Thread(
                 () -> {
                   pluginManager.disablePlugins();
+                  loggingService.shutdown();
                 }));
 
     lifecycle.finishStartup();
-    System.out.println("[" + NAME + "] " + NAME + " v" + VERSION + " started successfully.");
+    rootLogger.info("{} v{} started successfully.", NAME, VERSION);
 
     try {
       lifecycle.awaitShutdown();
@@ -66,7 +78,12 @@ public final class Bootstrap {
       Thread.currentThread().interrupt();
     }
 
-    System.out.println("[" + NAME + "] " + NAME + " v" + VERSION + " terminated.");
+    loggingService.shutdown();
+  }
+
+  /** Exposed for testing. */
+  LoggingService getLoggingService() {
+    return loggingService;
   }
 
   /** Exposed for testing. */

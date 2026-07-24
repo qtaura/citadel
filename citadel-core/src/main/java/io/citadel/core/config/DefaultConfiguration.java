@@ -72,14 +72,18 @@ final class DefaultConfiguration {
         # --- Logging ---
         # Log output configuration.
         logging:
-          # Minimum log level: TRACE, DEBUG, INFO, WARN, ERROR, FATAL
+          # Minimum log level: TRACE, DEBUG, INFO, WARN, ERROR
           level: "INFO"
-          # Log file path (relative to working directory)
-          file: "logs/citadel.log"
-          # Maximum log file size before rotation (e.g., "10MB", "1GB")
-          max_size: "10MB"
-          # Maximum number of archived log files to keep
-          max_history: 7
+          # File logging settings
+          file:
+            # Set to false to disable file logging
+            enabled: true
+            # Log file path (relative to working directory)
+            path: "logs/citadel.log"
+            # Maximum log file size before rotation (e.g., "10MB", "1GB")
+            max_size: "10MB"
+            # Maximum number of archived log files to keep
+            max_history: 7
 
         # --- Dashboard ---
         # Web dashboard server configuration.

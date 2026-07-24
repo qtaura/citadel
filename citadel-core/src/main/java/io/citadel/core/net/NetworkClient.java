@@ -22,7 +22,7 @@ public final class NetworkClient {
 
   private static final int DEFAULT_CONNECT_TIMEOUT = 5000;
   private static final int DEFAULT_READ_TIMEOUT = 30000;
-  private static final int MINECRAFT_PROTOCOL_VERSION = 767;
+  public static final int MINECRAFT_PROTOCOL_VERSION = 767;
 
   private final EventBus eventBus;
   private final Logger logger;

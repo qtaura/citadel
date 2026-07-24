@@ -44,12 +44,19 @@ final class DefaultConfiguration {
         # --- Authentication ---
         # Microsoft/Mojang authentication settings.
         authentication:
+          # Offline mode allows login to offline-mode test servers without Microsoft auth.
+          offline_mode: true
           # Authentication method: "microsoft" or "mojang"
           method: "microsoft"
           # Credential storage encryption
           encryption:
             # Encryption algorithm
             algorithm: "AES-256-GCM"
+
+        # --- Connection ---
+        # Protocol-stage timeouts that are independent from TCP connect/read timeouts.
+        connection:
+          login_timeout: 10000
 
         # --- Proxies ---
         # Proxy configuration for distributing connections.

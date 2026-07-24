@@ -25,7 +25,7 @@ public final class Connection implements Closeable {
   private final String host;
   private final int port;
   private final int connectTimeout;
-  private final int readTimeout;
+  private int readTimeout;
   private final EventBus eventBus;
   private final Logger logger;
 
@@ -154,6 +154,16 @@ public final class Connection implements Closeable {
 
   public int getPort() {
     return port;
+  }
+
+  public void setReadTimeout(int readTimeout) throws IOException {
+    if (readTimeout <= 0) {
+      throw new IllegalArgumentException("readTimeout must be positive");
+    }
+    this.readTimeout = readTimeout;
+    if (socket != null) {
+      socket.setSoTimeout(readTimeout);
+    }
   }
 
   private void ensureConnected() {

@@ -5,6 +5,7 @@ import io.citadel.api.event.network.ConnectionClosedEvent;
 import io.citadel.api.event.network.ConnectionOpenedEvent;
 import io.citadel.api.event.network.PacketReceivedEvent;
 import io.citadel.api.event.network.PacketSentEvent;
+import io.citadel.api.event.network.ProtocolStateChangedEvent;
 import io.citadel.api.network.ConnectionState;
 import io.citadel.api.network.ProtocolState;
 import io.citadel.api.service.Logger;
@@ -107,7 +108,15 @@ public final class Connection implements Closeable {
   }
 
   public void setProtocolState(ProtocolState newState) {
-    protocolState.set(Objects.requireNonNull(newState, "newState"));
+    Objects.requireNonNull(newState, "newState");
+    ProtocolState prev = protocolState.get();
+    if (prev == newState) {
+      return;
+    }
+    validateTransition(prev, newState);
+    protocolState.set(newState);
+    logger.info("Protocol state changed for {}:{}: {} -> {}", host, port, prev, newState);
+    eventBus.publishAsync(new ProtocolStateChangedEvent(host, port, prev, newState));
   }
 
   public ProtocolState getProtocolState() {
@@ -150,6 +159,17 @@ public final class Connection implements Closeable {
   private void ensureConnected() {
     if (state.get() != ConnectionState.CONNECTED) {
       throw new IllegalStateException("Not connected (state=" + state.get() + ")");
+    }
+  }
+
+  private static void validateTransition(ProtocolState current, ProtocolState next) {
+    boolean allowed =
+        (current == ProtocolState.HANDSHAKE
+                && (next == ProtocolState.STATUS || next == ProtocolState.LOGIN))
+            || (current == ProtocolState.LOGIN && next == ProtocolState.CONFIGURATION)
+            || (current == ProtocolState.CONFIGURATION && next == ProtocolState.PLAY);
+    if (!allowed) {
+      throw new IllegalStateException("Invalid protocol transition: " + current + " -> " + next);
     }
   }
 

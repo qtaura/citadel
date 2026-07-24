@@ -3,6 +3,7 @@ package io.citadel.core.plugin;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.citadel.core.bootstrap.ServiceRegistry;
+import io.citadel.core.logging.LoggingService;
 import io.citadel.core.plugin.testplugin.FailingOnDisablePlugin;
 import io.citadel.core.plugin.testplugin.FailingOnEnablePlugin;
 import io.citadel.core.plugin.testplugin.FailingOnLoadPlugin;
@@ -21,10 +22,12 @@ class PluginManagerTest {
   @TempDir Path pluginsDataDir;
 
   private ServiceRegistry serviceRegistry;
+  private LoggingService loggingService;
 
   @BeforeEach
   void setUp() {
     serviceRegistry = new ServiceRegistry();
+    loggingService = new LoggingService();
   }
 
   @Test
@@ -142,12 +145,16 @@ class PluginManagerTest {
   void loadPluginsNonExistentDirectory() {
     PluginManager manager =
         new PluginManager(
-            serviceRegistry, Path.of("does-not-exist-12345"), pluginsDataDir, "0.1.0");
+            serviceRegistry,
+            loggingService,
+            Path.of("does-not-exist-12345"),
+            pluginsDataDir,
+            "0.1.0");
     List<PluginDescriptor> descriptors = manager.loadPlugins();
     assertTrue(descriptors.isEmpty());
   }
 
   private PluginManager createManager() {
-    return new PluginManager(serviceRegistry, pluginsDir, pluginsDataDir, "0.1.0");
+    return new PluginManager(serviceRegistry, loggingService, pluginsDir, pluginsDataDir, "0.1.0");
   }
 }

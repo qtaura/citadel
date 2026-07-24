@@ -17,7 +17,8 @@
  *   <li>{@link io.citadel.api.service.Scheduler} — delayed and periodic task execution
  *   <li>{@link io.citadel.api.service.AccountManager} — account lifecycle and state tracking
  *       (contract added in Milestone 10)
- *   <li>{@link io.citadel.api.service.Logger} — structured logging (contract added in Milestone 6)
+ *   <li>{@link io.citadel.api.service.Logger} — structured logging with SLF4J backend and account
+ *       context support
  * </ul>
  *
  * <p>Service interfaces that have not yet been implemented are empty marker interfaces. Their

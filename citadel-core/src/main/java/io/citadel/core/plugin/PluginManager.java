@@ -2,8 +2,9 @@ package io.citadel.core.plugin;
 
 import io.citadel.api.plugin.Plugin;
 import io.citadel.api.plugin.PluginContext;
+import io.citadel.api.service.Logger;
 import io.citadel.core.bootstrap.ServiceRegistry;
-import io.citadel.core.service.NoOpLogger;
+import io.citadel.core.logging.LoggingService;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,10 +30,9 @@ import java.util.List;
  */
 public final class PluginManager {
 
-  private static final String NAME = "Citadel";
-  private static final String LOG_PREFIX = "] Plugin ";
-
   private final ServiceRegistry serviceRegistry;
+  private final LoggingService loggingService;
+  private final Logger logger;
   private final Path pluginsDirectory;
   private final Path pluginsDataDirectory;
   private final String coreApiVersion;
@@ -40,10 +40,13 @@ public final class PluginManager {
 
   public PluginManager(
       ServiceRegistry serviceRegistry,
+      LoggingService loggingService,
       Path pluginsDirectory,
       Path pluginsDataDirectory,
       String coreApiVersion) {
     this.serviceRegistry = serviceRegistry;
+    this.loggingService = loggingService;
+    this.logger = loggingService.getLogger("PluginManager");
     this.pluginsDirectory = pluginsDirectory;
     this.pluginsDataDirectory = pluginsDataDirectory;
     this.coreApiVersion = coreApiVersion;
@@ -53,8 +56,7 @@ public final class PluginManager {
   /** Scans, loads, and initializes all plugins. Returns the list of descriptors. */
   public List<PluginDescriptor> loadPlugins() {
     if (!Files.isDirectory(pluginsDirectory)) {
-      System.out.println(
-          "[" + NAME + "] Plugins directory " + pluginsDirectory + " does not exist; skipping");
+      logger.info("Plugins directory {} does not exist; skipping", pluginsDirectory);
       return Collections.emptyList();
     }
 
@@ -101,8 +103,7 @@ public final class PluginManager {
 
   private void loadPlugin(PluginDescriptor descriptor) {
     plugins.add(descriptor);
-    System.out.println(
-        "[" + NAME + LOG_PREFIX + descriptor.getName() + " v" + descriptor.getVersion() + " ...");
+    logger.info("Plugin {} v{} ...", descriptor.getName(), descriptor.getVersion());
 
     try {
       ClassLoader parentLoader = Thread.currentThread().getContextClassLoader();
@@ -119,59 +120,46 @@ public final class PluginManager {
       descriptor.setInstance(instance);
 
       Path dataFolder = ensureDataFolder(descriptor.getName());
+      Logger pluginLogger = loggingService.getPluginLogger(descriptor.getName());
       PluginContext context =
           new CorePluginContext(
-              serviceRegistry, new NoOpLogger(), descriptor.getAnnotation(), dataFolder);
+              serviceRegistry, pluginLogger, descriptor.getAnnotation(), dataFolder);
 
       instance.onLoad(context);
       descriptor.setState(PluginState.LOADED);
 
-      System.out.println(
-          "["
-              + NAME
-              + LOG_PREFIX
-              + descriptor.getName()
-              + " v"
-              + descriptor.getVersion()
-              + " loaded");
+      logger.info("Plugin {} v{} loaded", descriptor.getName(), descriptor.getVersion());
     } catch (Exception e) {
-      System.err.println("[" + NAME + LOG_PREFIX + descriptor.getName() + ": " + e.getMessage());
+      logger.error("Failed to load plugin {}: {}", descriptor.getName(), e.getMessage());
+      logger.error("Plugin load error details", e);
       descriptor.setState(PluginState.ERROR);
     }
   }
 
   private void enablePlugin(PluginDescriptor descriptor) {
-    System.out.println("[" + NAME + LOG_PREFIX + descriptor.getName() + " ...");
+    logger.info("Enabling plugin {} ...", descriptor.getName());
     try {
       descriptor.getInstance().onEnable();
       descriptor.setState(PluginState.ENABLED);
-      System.out.println("[" + NAME + LOG_PREFIX + descriptor.getName() + " enabled");
+      logger.info("Plugin {} enabled", descriptor.getName());
     } catch (Exception e) {
-      System.err.println(
-          "["
-              + NAME
-              + LOG_PREFIX
-              + descriptor.getName()
-              + " threw exception in onEnable: "
-              + e.getMessage());
+      logger.error(
+          "Plugin {} threw exception in onEnable: {}", descriptor.getName(), e.getMessage());
+      logger.error("Plugin enable error details", e);
       descriptor.setState(PluginState.ERROR);
     }
   }
 
   private void disablePlugin(PluginDescriptor descriptor) {
-    System.out.println("[" + NAME + LOG_PREFIX + descriptor.getName() + " ...");
+    logger.info("Disabling plugin {} ...", descriptor.getName());
     try {
       descriptor.getInstance().onDisable();
       descriptor.setState(PluginState.DISABLED);
-      System.out.println("[" + NAME + LOG_PREFIX + descriptor.getName() + " disabled");
+      logger.info("Plugin {} disabled", descriptor.getName());
     } catch (Exception e) {
-      System.err.println(
-          "["
-              + NAME
-              + LOG_PREFIX
-              + descriptor.getName()
-              + " threw exception in onDisable: "
-              + e.getMessage());
+      logger.error(
+          "Plugin {} threw exception in onDisable: {}", descriptor.getName(), e.getMessage());
+      logger.error("Plugin disable error details", e);
       descriptor.setState(PluginState.ERROR);
     }
   }

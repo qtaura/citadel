@@ -29,9 +29,20 @@ subprojects {
     }
 
     tasks.withType<Test> {
-        useJUnitPlatform()
+        useJUnitPlatform {
+            excludeTags("integration")
+        }
         minHeapSize = "128m"
         maxHeapSize = "512m"
+    }
+
+    tasks.register<Test>("integrationTest") {
+        useJUnitPlatform {
+            includeTags("integration")
+        }
+        minHeapSize = "128m"
+        maxHeapSize = "512m"
+        shouldRunAfter(tasks.named("test"))
     }
 
     plugins.apply("pmd")

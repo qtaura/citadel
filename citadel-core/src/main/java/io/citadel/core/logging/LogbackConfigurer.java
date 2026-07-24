@@ -10,6 +10,7 @@ import ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy;
 import ch.qos.logback.core.util.FileSize;
 import io.citadel.api.service.ConfigurationSection;
 import java.nio.file.Path;
+import java.util.Locale;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -115,7 +116,7 @@ final class LogbackConfigurer {
   }
 
   private static Level parseLevel(String levelName) {
-    switch (levelName.toUpperCase()) {
+    switch (levelName.toUpperCase(Locale.ROOT)) {
       case "TRACE":
         return Level.TRACE;
       case "DEBUG":

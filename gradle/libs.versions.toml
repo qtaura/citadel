@@ -2,11 +2,13 @@
 spotless = "6.25.0"
 junit = "5.11.0"
 junit-platform = "1.11.0"
+snakeyaml = "2.2"
 
 [libraries]
 junit-jupiter-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit" }
 junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform" }
+snakeyaml = { module = "org.yaml:snakeyaml", version.ref = "snakeyaml" }
 
 [plugins]
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }

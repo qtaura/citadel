@@ -1,10 +1,12 @@
 package io.citadel.core.bootstrap;
 
+import io.citadel.api.event.EventBus;
 import io.citadel.api.service.AccountManager;
 import io.citadel.api.service.Configuration;
 import io.citadel.api.service.Logger;
 import io.citadel.api.service.Scheduler;
 import io.citadel.core.config.CitadelConfiguration;
+import io.citadel.core.event.EventBusImpl;
 import io.citadel.core.logging.LoggingService;
 import io.citadel.core.plugin.PluginManager;
 import io.citadel.core.service.NoOpAccountManager;
@@ -27,6 +29,7 @@ public final class Bootstrap {
   private final Lifecycle lifecycle;
   private final ServiceRegistry serviceRegistry;
   private final LoggingService loggingService;
+  private EventBusImpl eventBus;
 
   public Bootstrap() {
     this.lifecycle = new Lifecycle();
@@ -44,6 +47,10 @@ public final class Bootstrap {
     Logger rootLogger = loggingService.getRootLogger();
     serviceRegistry.register(Logger.class, rootLogger);
     rootLogger.info("Starting {} v{} ...", NAME, VERSION);
+
+    this.eventBus = new EventBusImpl(rootLogger);
+    serviceRegistry.register(EventBus.class, eventBus);
+    rootLogger.info("Event bus initialized");
 
     registerNoOpServices(serviceRegistry);
 
@@ -66,6 +73,7 @@ public final class Bootstrap {
             new Thread(
                 () -> {
                   pluginManager.disablePlugins();
+                  eventBus.shutdown();
                   loggingService.shutdown();
                 }));
 
@@ -78,12 +86,18 @@ public final class Bootstrap {
       Thread.currentThread().interrupt();
     }
 
+    eventBus.shutdown();
     loggingService.shutdown();
   }
 
   /** Exposed for testing. */
   LoggingService getLoggingService() {
     return loggingService;
+  }
+
+  /** Exposed for testing. */
+  EventBusImpl getEventBus() {
+    return eventBus;
   }
 
   /** Exposed for testing. */

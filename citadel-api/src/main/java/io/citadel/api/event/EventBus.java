@@ -1,5 +1,7 @@
 package io.citadel.api.event;
 
+import io.citadel.api.service.Service;
+
 /**
  * Dispatches events between core subsystems and plugins.
  *
@@ -26,7 +28,7 @@ package io.citadel.api.event;
  * <p>Thread safety: implementations of this interface must be thread-safe. Handlers may be invoked
  * from any thread.
  */
-public interface EventBus {
+public interface EventBus extends Service {
 
   /**
    * Registers a handler for a specific event type.

@@ -20,10 +20,14 @@ import java.util.Objects;
 public abstract class Event {
 
   private final Instant timestamp;
+  private final String sourcePlugin;
+  private final String accountId;
 
   /** Constructs a new event with the current system time as the timestamp. */
   protected Event() {
     this.timestamp = Instant.now();
+    this.sourcePlugin = null;
+    this.accountId = null;
   }
 
   /**
@@ -34,6 +38,20 @@ public abstract class Event {
    */
   protected Event(Instant timestamp) {
     this.timestamp = Objects.requireNonNull(timestamp, "timestamp must not be null");
+    this.sourcePlugin = null;
+    this.accountId = null;
+  }
+
+  /**
+   * Constructs a new event with source and account metadata.
+   *
+   * @param sourcePlugin the name of the plugin that published this event, or null
+   * @param accountId the account identifier associated with this event, or null
+   */
+  protected Event(String sourcePlugin, String accountId) {
+    this.timestamp = Instant.now();
+    this.sourcePlugin = sourcePlugin;
+    this.accountId = accountId;
   }
 
   /**
@@ -43,5 +61,23 @@ public abstract class Event {
    */
   public Instant getTimestamp() {
     return timestamp;
+  }
+
+  /**
+   * Returns the name of the plugin that published this event.
+   *
+   * @return the source plugin name, or null if no source was set
+   */
+  public String getSourcePlugin() {
+    return sourcePlugin;
+  }
+
+  /**
+   * Returns the account identifier associated with this event.
+   *
+   * @return the account id, or null if no account was associated
+   */
+  public String getAccountId() {
+    return accountId;
   }
 }

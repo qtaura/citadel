@@ -1,5 +1,6 @@
 package io.citadel.core.plugin;
 
+import io.citadel.api.event.EventBus;
 import io.citadel.api.plugin.Plugin;
 import io.citadel.api.plugin.PluginContext;
 import io.citadel.api.service.Logger;
@@ -37,6 +38,7 @@ public final class PluginManager {
   private final Path pluginsDataDirectory;
   private final String coreApiVersion;
   private final List<PluginDescriptor> plugins;
+  private PluginSubscriptionTracker subscriptionTracker;
 
   public PluginManager(
       ServiceRegistry serviceRegistry,
@@ -89,6 +91,13 @@ public final class PluginManager {
         disablePlugin(descriptor);
       }
     }
+    // Cancel all remaining subscriptions for every plugin.
+    PluginSubscriptionTracker tracker = getSubscriptionTracker();
+    if (tracker != null) {
+      for (PluginDescriptor descriptor : plugins) {
+        tracker.cancelAll(descriptor.getName());
+      }
+    }
     for (PluginDescriptor descriptor : plugins) {
       if (descriptor.getClassLoader() != null) {
         closeQuietly(descriptor.getClassLoader());
@@ -121,9 +130,13 @@ public final class PluginManager {
 
       Path dataFolder = ensureDataFolder(descriptor.getName());
       Logger pluginLogger = loggingService.getPluginLogger(descriptor.getName());
+      EventBus trackedBus =
+          getSubscriptionTracker() != null
+              ? getSubscriptionTracker().forPlugin(descriptor.getName())
+              : null;
       PluginContext context =
           new CorePluginContext(
-              serviceRegistry, pluginLogger, descriptor.getAnnotation(), dataFolder);
+              serviceRegistry, trackedBus, pluginLogger, descriptor.getAnnotation(), dataFolder);
 
       instance.onLoad(context);
       descriptor.setState(PluginState.LOADED);
@@ -180,5 +193,13 @@ public final class PluginManager {
     } catch (IOException e) {
       // Ignore
     }
+  }
+
+  private PluginSubscriptionTracker getSubscriptionTracker() {
+    if (subscriptionTracker == null) {
+      this.subscriptionTracker =
+          serviceRegistry.get(EventBus.class).map(PluginSubscriptionTracker::new).orElse(null);
+    }
+    return subscriptionTracker;
   }
 }

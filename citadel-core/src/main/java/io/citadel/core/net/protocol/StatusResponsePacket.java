@@ -2,9 +2,11 @@ package io.citadel.core.net.protocol;
 
 import io.citadel.api.network.ProtocolState;
 import io.citadel.core.net.Packet;
+import io.citadel.core.net.VarInt;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 public final class StatusResponsePacket implements Packet {
 
@@ -23,12 +25,17 @@ public final class StatusResponsePacket implements Packet {
 
   @Override
   public void write(DataOutput out) throws IOException {
-    out.writeUTF(json);
+    byte[] jsonBytes = json.getBytes(StandardCharsets.UTF_8);
+    VarInt.write(jsonBytes.length, out);
+    out.write(jsonBytes);
   }
 
   @Override
   public void read(DataInput in) throws IOException {
-    this.json = in.readUTF();
+    int len = VarInt.read(in);
+    byte[] buf = new byte[len];
+    in.readFully(buf);
+    this.json = new String(buf, StandardCharsets.UTF_8);
   }
 
   public String getJson() {

@@ -2,9 +2,11 @@ package io.citadel.core.net.protocol;
 
 import io.citadel.api.network.ProtocolState;
 import io.citadel.core.net.Packet;
+import io.citadel.core.net.VarInt;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 public final class HandshakePacket implements Packet {
 
@@ -29,18 +31,23 @@ public final class HandshakePacket implements Packet {
 
   @Override
   public void write(DataOutput out) throws IOException {
-    io.citadel.core.net.VarInt.write(protocolVersion, out);
-    out.writeUTF(serverAddress);
+    VarInt.write(protocolVersion, out);
+    byte[] addrBytes = serverAddress.getBytes(StandardCharsets.UTF_8);
+    VarInt.write(addrBytes.length, out);
+    out.write(addrBytes);
     out.writeShort(serverPort);
-    io.citadel.core.net.VarInt.write(nextState, out);
+    VarInt.write(nextState, out);
   }
 
   @Override
   public void read(DataInput in) throws IOException {
-    this.protocolVersion = io.citadel.core.net.VarInt.read(in);
-    this.serverAddress = in.readUTF();
+    this.protocolVersion = VarInt.read(in);
+    int addrLen = VarInt.read(in);
+    byte[] addrBytes = new byte[addrLen];
+    in.readFully(addrBytes);
+    this.serverAddress = new String(addrBytes, StandardCharsets.UTF_8);
     this.serverPort = in.readUnsignedShort();
-    this.nextState = io.citadel.core.net.VarInt.read(in);
+    this.nextState = VarInt.read(in);
   }
 
   public int getProtocolVersion() {

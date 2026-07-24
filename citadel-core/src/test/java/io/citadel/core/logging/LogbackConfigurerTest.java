@@ -116,7 +116,7 @@ class LogbackConfigurerTest {
       implements io.citadel.api.service.ConfigurationSection {
 
     String level = "INFO";
-    boolean fileEnabled = false;
+    boolean fileEnabled;
     String filePath = "logs/test.log";
     String maxSize = "10MB";
     int maxHistory = 7;
@@ -124,43 +124,63 @@ class LogbackConfigurerTest {
     @Override
     public String getString(String path) {
       if ("level".equals(path)) {
-        if (level == null) throw new RuntimeException("missing");
+        if (level == null) {
+          throw new RuntimeException("missing");
+        }
         return level;
       }
-      if ("file.path".equals(path)) return filePath;
-      if ("file.max_size".equals(path)) return maxSize;
+      if ("file.path".equals(path)) {
+        return filePath;
+      }
+      if ("file.max_size".equals(path)) {
+        return maxSize;
+      }
       throw new RuntimeException("Missing: " + path);
     }
 
     @Override
     public String getString(String path, String defaultValue) {
-      if ("level".equals(path)) return level != null ? level : defaultValue;
-      if ("file.path".equals(path)) return filePath;
-      if ("file.max_size".equals(path)) return maxSize;
+      if ("level".equals(path)) {
+        return level != null ? level : defaultValue;
+      }
+      if ("file.path".equals(path)) {
+        return filePath;
+      }
+      if ("file.max_size".equals(path)) {
+        return maxSize;
+      }
       return defaultValue;
     }
 
     @Override
     public boolean getBoolean(String path) {
-      if ("file.enabled".equals(path)) return fileEnabled;
+      if ("file.enabled".equals(path)) {
+        return fileEnabled;
+      }
       throw new RuntimeException("Missing: " + path);
     }
 
     @Override
     public boolean getBoolean(String path, boolean defaultValue) {
-      if ("file.enabled".equals(path)) return fileEnabled;
+      if ("file.enabled".equals(path)) {
+        return fileEnabled;
+      }
       return defaultValue;
     }
 
     @Override
     public int getInt(String path) {
-      if ("file.max_history".equals(path)) return maxHistory;
+      if ("file.max_history".equals(path)) {
+        return maxHistory;
+      }
       throw new RuntimeException("Missing: " + path);
     }
 
     @Override
     public int getInt(String path, int defaultValue) {
-      if ("file.max_history".equals(path)) return maxHistory;
+      if ("file.max_history".equals(path)) {
+        return maxHistory;
+      }
       return defaultValue;
     }
 
@@ -206,7 +226,9 @@ class LogbackConfigurerTest {
 
     @Override
     public io.citadel.api.service.ConfigurationSection getSection(String path) {
-      if ("file".equals(path)) return new FileSection();
+      if ("file".equals(path)) {
+        return new FileSection();
+      }
       throw new RuntimeException("Unexpected: " + path);
     }
 
@@ -228,39 +250,55 @@ class LogbackConfigurerTest {
 
       @Override
       public String getString(String path) {
-        if ("path".equals(path)) return filePath;
-        if ("max_size".equals(path)) return maxSize;
+        if ("path".equals(path)) {
+          return filePath;
+        }
+        if ("max_size".equals(path)) {
+          return maxSize;
+        }
         throw new RuntimeException("Missing: " + path);
       }
 
       @Override
       public String getString(String path, String defaultValue) {
-        if ("path".equals(path)) return filePath;
-        if ("max_size".equals(path)) return maxSize;
+        if ("path".equals(path)) {
+          return filePath;
+        }
+        if ("max_size".equals(path)) {
+          return maxSize;
+        }
         return defaultValue;
       }
 
       @Override
       public boolean getBoolean(String path) {
-        if ("enabled".equals(path)) return fileEnabled;
+        if ("enabled".equals(path)) {
+          return fileEnabled;
+        }
         throw new RuntimeException("Missing: " + path);
       }
 
       @Override
       public boolean getBoolean(String path, boolean defaultValue) {
-        if ("enabled".equals(path)) return fileEnabled;
+        if ("enabled".equals(path)) {
+          return fileEnabled;
+        }
         return defaultValue;
       }
 
       @Override
       public int getInt(String path) {
-        if ("max_history".equals(path)) return maxHistory;
+        if ("max_history".equals(path)) {
+          return maxHistory;
+        }
         throw new RuntimeException("Missing: " + path);
       }
 
       @Override
       public int getInt(String path, int defaultValue) {
-        if ("max_history".equals(path)) return maxHistory;
+        if ("max_history".equals(path)) {
+          return maxHistory;
+        }
         return defaultValue;
       }
 

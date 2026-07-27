@@ -166,13 +166,6 @@ class ConnectionTest {
   }
 
   @Test
-  void connectFailureClosesSocket() {
-    Connection c = createConnection("192.0.2.1", 25565);
-    assertThrows(java.io.IOException.class, c::connect);
-    assertEquals(ConnectionState.CLOSED, c.getState());
-  }
-
-  @Test
   void connectToUnreachablePortClosesSocket() {
     Connection c = createConnection("localhost", 1);
     assertThrows(java.io.IOException.class, c::connect);

@@ -21,13 +21,13 @@ public final class EventBusImpl implements EventBus {
   private final Logger logger;
   private final Map<Class<?>, List<HandlerEntry>> handlers;
   private final ExecutorService asyncExecutor;
-  private final AtomicBoolean shutdown;
+  private final AtomicBoolean shutdownFlag;
 
   public EventBusImpl(Logger logger) {
     this.logger = logger;
     this.handlers = new ConcurrentHashMap<>();
     this.asyncExecutor = Executors.newVirtualThreadPerTaskExecutor();
-    this.shutdown = new AtomicBoolean(false);
+    this.shutdownFlag = new AtomicBoolean(false);
   }
 
   @Override
@@ -38,12 +38,12 @@ public final class EventBusImpl implements EventBus {
     List<HandlerEntry> entries = handlers.computeIfAbsent(type, k -> new CopyOnWriteArrayList<>());
 
     for (HandlerEntry entry : entries) {
-      if (!entry.cancelled.get() && entry.handler == handler) {
+      if (!entry.cancelled.get() && entry.handler.equals(handler)) {
         return entry.subscription;
       }
     }
 
-    var entry = new HandlerEntry(handler);
+    HandlerEntry entry = new HandlerEntry(handler);
     entries.add(entry);
     entry.subscription =
         () -> {
@@ -62,7 +62,7 @@ public final class EventBusImpl implements EventBus {
     List<HandlerEntry> entries = handlers.get(type);
     if (entries != null) {
       for (HandlerEntry entry : entries) {
-        if (entry.handler == handler) {
+        if (entry.handler.equals(handler)) {
           entry.cancelled.set(true);
         }
       }
@@ -79,7 +79,7 @@ public final class EventBusImpl implements EventBus {
   @Override
   public void publishAsync(Event event) {
     Objects.requireNonNull(event, "event must not be null");
-    if (shutdown.get()) {
+    if (shutdownFlag.get()) {
       return;
     }
     try {
@@ -94,25 +94,32 @@ public final class EventBusImpl implements EventBus {
     while (type != null && type != Object.class && Event.class.isAssignableFrom(type)) {
       List<HandlerEntry> entries = handlers.get(type);
       if (entries != null) {
-        for (HandlerEntry entry : entries) {
-          if (!entry.cancelled.get()) {
-            try {
-              @SuppressWarnings("unchecked")
-              EventHandler<Event> handler = (EventHandler<Event>) entry.handler;
-              handler.handle(event);
-            } catch (Exception e) {
-              logger.error(
-                  "Event handler threw exception for event type {}", event.getClass().getName());
-            }
-          }
-        }
+        invokeHandlers(entries, event);
       }
       type = type.getSuperclass();
     }
   }
 
+  private void invokeHandlers(List<HandlerEntry> entries, Event event) {
+    for (HandlerEntry entry : entries) {
+      if (!entry.cancelled.get()) {
+        invokeHandler(entry, event);
+      }
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  private void invokeHandler(HandlerEntry entry, Event event) {
+    try {
+      EventHandler<Event> handler = (EventHandler<Event>) entry.handler;
+      handler.handle(event);
+    } catch (Exception e) {
+      logger.error("Event handler threw exception for event type {}", event.getClass().getName());
+    }
+  }
+
   public void shutdown() {
-    shutdown.set(true);
+    shutdownFlag.set(true);
     asyncExecutor.shutdown();
   }
 
@@ -126,7 +133,7 @@ public final class EventBusImpl implements EventBus {
   }
 
   boolean isShutdown() {
-    return shutdown.get();
+    return shutdownFlag.get();
   }
 
   static final class HandlerEntry {

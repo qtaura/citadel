@@ -55,7 +55,7 @@ public final class PluginSubscriptionTracker {
     @Override
     public <T extends Event> Subscription subscribe(Class<T> type, EventHandler<T> handler) {
       Subscription sub = eventBus.subscribe(type, handler);
-      var tracked = new TrackedSubscription(type, handler, sub);
+      TrackedSubscription tracked = new TrackedSubscription(type, handler, sub);
       subscriptions.computeIfAbsent(pluginName, k -> new CopyOnWriteArrayList<>()).add(tracked);
       return sub;
     }
@@ -65,7 +65,7 @@ public final class PluginSubscriptionTracker {
       eventBus.unsubscribe(type, handler);
       List<TrackedSubscription> subs = subscriptions.get(pluginName);
       if (subs != null) {
-        subs.removeIf(ts -> ts.type == type && ts.handler == handler);
+        subs.removeIf(ts -> ts.type.equals(type) && ts.handler.equals(handler));
       }
     }
 

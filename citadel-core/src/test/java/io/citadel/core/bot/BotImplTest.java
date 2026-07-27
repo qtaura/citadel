@@ -25,9 +25,12 @@ import org.junit.jupiter.api.Test;
 @SuppressWarnings({
   "PMD.CouplingBetweenObjects",
   "PMD.ExcessiveImports",
-  "PMD.AvoidInstantiatingObjectsInLoops"
+  "PMD.AvoidInstantiatingObjectsInLoops",
+  "PMD.AvoidUsingHardCodedIP"
 })
 class BotImplTest {
+
+  private static final String TEST_NET_HOST = "198.51.100.1";
 
   @Test
   void initialStateIsCreated() {
@@ -37,10 +40,17 @@ class BotImplTest {
   }
 
   @Test
-  void startSetsStateToStarting() {
+  void startSetsStateToStarting() throws Exception {
     BotImpl bot = createTestBot("a1", trueAccount("a1"));
+    CountDownLatch blocker = new CountDownLatch(1);
+    bot.startBlocker = blocker;
     bot.start();
     assertEquals(BotState.STARTING, bot.getState());
+    blocker.countDown();
+    try {
+      bot.start().get(5, TimeUnit.SECONDS);
+    } catch (Exception expected) {
+    }
   }
 
   @Test
@@ -48,7 +58,7 @@ class BotImplTest {
     BotImpl bot = createTestBot("a1", trueAccount("a1"));
     forceState(bot, BotState.RUNNING);
     assertTrue(bot.start().isDone());
-    assertTrue(bot.start().isCompletedExceptionally() == false);
+    assertFalse(bot.start().isCompletedExceptionally());
   }
 
   @Test
@@ -182,7 +192,7 @@ class BotImplTest {
     acctMgr.add(new Account("a1", "TestUser", AccountType.OFFLINE));
     RecordingEventBus bus = new RecordingEventBus();
     BotImpl bot =
-        new BotImpl("a1", acctMgr, null, bus, silentLogger(), 1000, 1000, "198.51.100.1", 1);
+        new BotImpl("a1", acctMgr, null, bus, silentLogger(), 1000, 1000, TEST_NET_HOST, 1);
     CompletableFuture<Void> future = bot.start();
     assertThrows(ExecutionException.class, () -> future.get(10, TimeUnit.SECONDS));
     assertEquals(BotState.FAILED, bot.getState());
@@ -194,7 +204,7 @@ class BotImplTest {
     acctMgr.add(new Account("a1", "TestUser", AccountType.OFFLINE));
     RecordingEventBus bus = new RecordingEventBus();
     BotImpl bot =
-        new BotImpl("a1", acctMgr, null, bus, silentLogger(), 1000, 1000, "198.51.100.1", 1);
+        new BotImpl("a1", acctMgr, null, bus, silentLogger(), 1000, 1000, TEST_NET_HOST, 1);
     try {
       bot.start().get(10, TimeUnit.SECONDS);
     } catch (Exception expected) {
@@ -286,7 +296,7 @@ class BotImplTest {
     acctMgr.add(acct);
     RecordingEventBus bus = new RecordingEventBus();
     BotImpl bot =
-        new BotImpl("a1", acctMgr, null, bus, silentLogger(), 1000, 1000, "198.51.100.1", 1);
+        new BotImpl("a1", acctMgr, null, bus, silentLogger(), 1000, 1000, TEST_NET_HOST, 1);
     bot.start();
     Thread.sleep(50);
     CompletableFuture<Void> stopFuture = bot.stop();
@@ -300,7 +310,7 @@ class BotImplTest {
     acctMgr.add(new Account("a1", "TestUser", AccountType.OFFLINE));
     RecordingEventBus bus = new RecordingEventBus();
     BotImpl bot =
-        new BotImpl("a1", acctMgr, null, bus, silentLogger(), 1000, 1000, "198.51.100.1", 1);
+        new BotImpl("a1", acctMgr, null, bus, silentLogger(), 1000, 1000, TEST_NET_HOST, 1);
     try {
       bot.start().get(10, TimeUnit.SECONDS);
     } catch (Exception expected) {
@@ -329,10 +339,6 @@ class BotImplTest {
     bot.forceState(target);
   }
 
-  private static RecordingEventBus silentBus() {
-    return new RecordingEventBus();
-  }
-
   private static TestLogger silentLogger() {
     return new TestLogger();
   }
@@ -344,7 +350,7 @@ class BotImplTest {
   // ---- Test stubs ----
 
   private static final class TestAccountManager implements AccountManager {
-    private final java.util.concurrent.ConcurrentHashMap<String, Account> accounts =
+    private final java.util.Map<String, Account> accounts =
         new java.util.concurrent.ConcurrentHashMap<>();
 
     void add(Account account) {
@@ -354,11 +360,6 @@ class BotImplTest {
     @Override
     public Account get(String id) {
       return accounts.get(id);
-    }
-
-    @Override
-    public java.util.List<Account> getAll() {
-      return List.copyOf(accounts.values());
     }
 
     @Override
@@ -377,6 +378,28 @@ class BotImplTest {
     }
 
     @Override
+    public List<Account> getAll() {
+      return List.copyOf(accounts.values());
+    }
+
+    @Override
+    public List<Account> findEnabled() {
+      return accounts.values().stream().filter(Account::enabled).toList();
+    }
+
+    @Override
+    public List<Account> findByTag(String tag) {
+      return accounts.values().stream().filter(a -> a.tags().contains(tag)).toList();
+    }
+
+    @Override
+    public List<Account> findByServer(String server) {
+      return accounts.values().stream()
+          .filter(a -> a.server().isPresent() && a.server().get().equals(server))
+          .toList();
+    }
+
+    @Override
     public boolean contains(String id) {
       return accounts.containsKey(id);
     }
@@ -384,23 +407,6 @@ class BotImplTest {
     @Override
     public int size() {
       return accounts.size();
-    }
-
-    @Override
-    public java.util.List<Account> findEnabled() {
-      return accounts.values().stream().filter(Account::enabled).toList();
-    }
-
-    @Override
-    public java.util.List<Account> findByTag(String tag) {
-      return accounts.values().stream().filter(a -> a.tags().contains(tag)).toList();
-    }
-
-    @Override
-    public java.util.List<Account> findByServer(String server) {
-      return accounts.values().stream()
-          .filter(a -> a.server().isPresent() && a.server().get().equals(server))
-          .toList();
     }
   }
 

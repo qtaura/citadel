@@ -18,7 +18,7 @@ import java.net.Socket;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
-public final class Connection implements Closeable {
+public final class Connection implements io.citadel.api.network.Connection, Closeable {
 
   private final AtomicReference<ConnectionState> state;
   private final AtomicReference<ProtocolState> protocolState;
@@ -33,7 +33,7 @@ public final class Connection implements Closeable {
   private DataInputStream in;
   private DataOutputStream out;
 
-  Connection(
+  public Connection(
       String host,
       int port,
       int connectTimeout,

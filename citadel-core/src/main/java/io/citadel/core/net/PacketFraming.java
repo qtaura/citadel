@@ -42,10 +42,7 @@ public final class PacketFraming {
     int headerSize = VarInt.size(packetId);
     if (headerSize > bodyLength) {
       throw new IOException(
-          "Invalid frame: header size "
-              + headerSize
-              + " exceeds body length "
-              + bodyLength);
+          "Invalid frame: header size " + headerSize + " exceeds body length " + bodyLength);
     }
     byte[] payload = new byte[bodyLength - headerSize];
     if (payload.length > 0) {

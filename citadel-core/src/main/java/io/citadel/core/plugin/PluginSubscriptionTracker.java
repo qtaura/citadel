@@ -56,9 +56,7 @@ public final class PluginSubscriptionTracker {
     public <T extends Event> Subscription subscribe(Class<T> type, EventHandler<T> handler) {
       Subscription sub = eventBus.subscribe(type, handler);
       var tracked = new TrackedSubscription(type, handler, sub);
-      subscriptions
-          .computeIfAbsent(pluginName, k -> new CopyOnWriteArrayList<>())
-          .add(tracked);
+      subscriptions.computeIfAbsent(pluginName, k -> new CopyOnWriteArrayList<>()).add(tracked);
       return sub;
     }
 

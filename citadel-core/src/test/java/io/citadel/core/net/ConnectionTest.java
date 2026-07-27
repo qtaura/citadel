@@ -2,7 +2,6 @@ package io.citadel.core.net;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.citadel.api.event.Event;
 import io.citadel.api.event.EventBus;
 import io.citadel.api.event.network.ConnectionOpenedEvent;
 import io.citadel.api.event.network.ProtocolStateChangedEvent;

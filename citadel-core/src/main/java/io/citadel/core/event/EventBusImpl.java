@@ -35,8 +35,7 @@ public final class EventBusImpl implements EventBus {
     Objects.requireNonNull(type, "type must not be null");
     Objects.requireNonNull(handler, "handler must not be null");
 
-    List<HandlerEntry> entries =
-        handlers.computeIfAbsent(type, k -> new CopyOnWriteArrayList<>());
+    List<HandlerEntry> entries = handlers.computeIfAbsent(type, k -> new CopyOnWriteArrayList<>());
 
     for (HandlerEntry entry : entries) {
       if (!entry.cancelled.get() && entry.handler == handler) {
@@ -103,8 +102,7 @@ public final class EventBusImpl implements EventBus {
               handler.handle(event);
             } catch (Exception e) {
               logger.error(
-                  "Event handler threw exception for event type {}",
-                  event.getClass().getName());
+                  "Event handler threw exception for event type {}", event.getClass().getName());
             }
           }
         }

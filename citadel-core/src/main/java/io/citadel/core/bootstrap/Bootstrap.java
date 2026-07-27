@@ -5,6 +5,8 @@ import io.citadel.api.service.AccountManager;
 import io.citadel.api.service.Configuration;
 import io.citadel.api.service.Logger;
 import io.citadel.api.service.Scheduler;
+import io.citadel.core.auth.AuthenticationService;
+import io.citadel.core.bot.BotManagerImpl;
 import io.citadel.core.config.CitadelConfiguration;
 import io.citadel.core.event.EventBusImpl;
 import io.citadel.core.logging.LoggingService;
@@ -55,6 +57,14 @@ public final class Bootstrap {
     AccountManagerImpl accountManager = new AccountManagerImpl(configuration, eventBus, rootLogger);
     serviceRegistry.register(AccountManager.class, accountManager);
     rootLogger.info("Loaded {} account(s) from configuration", accountManager.size());
+
+    AuthenticationService authenticationService =
+        new AuthenticationService(eventBus, rootLogger, configuration);
+    BotManagerImpl botManager =
+        new BotManagerImpl(
+            accountManager, authenticationService, eventBus, rootLogger, configuration);
+    serviceRegistry.register(io.citadel.api.bot.BotManager.class, botManager);
+    rootLogger.info("Bot manager initialized");
 
     registerNoOpServices(serviceRegistry);
 

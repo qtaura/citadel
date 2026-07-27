@@ -12,7 +12,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public final class PluginSubscriptionTracker {
 
   private final EventBus eventBus;
-  private final Map<String, List<Subscription>> subscriptions;
+  private final Map<String, List<TrackedSubscription>> subscriptions;
 
   public PluginSubscriptionTracker(EventBus eventBus) {
     this.eventBus = eventBus;
@@ -24,11 +24,23 @@ public final class PluginSubscriptionTracker {
   }
 
   public void cancelAll(String pluginName) {
-    List<Subscription> subs = subscriptions.remove(pluginName);
+    List<TrackedSubscription> subs = subscriptions.remove(pluginName);
     if (subs != null) {
-      for (Subscription sub : subs) {
-        sub.cancel();
+      for (TrackedSubscription sub : subs) {
+        sub.delegate.cancel();
       }
+    }
+  }
+
+  private static final class TrackedSubscription {
+    final Class<?> type;
+    final EventHandler<?> handler;
+    final Subscription delegate;
+
+    TrackedSubscription(Class<?> type, EventHandler<?> handler, Subscription delegate) {
+      this.type = type;
+      this.handler = handler;
+      this.delegate = delegate;
     }
   }
 
@@ -43,13 +55,20 @@ public final class PluginSubscriptionTracker {
     @Override
     public <T extends Event> Subscription subscribe(Class<T> type, EventHandler<T> handler) {
       Subscription sub = eventBus.subscribe(type, handler);
-      subscriptions.computeIfAbsent(pluginName, k -> new CopyOnWriteArrayList<>()).add(sub);
+      var tracked = new TrackedSubscription(type, handler, sub);
+      subscriptions
+          .computeIfAbsent(pluginName, k -> new CopyOnWriteArrayList<>())
+          .add(tracked);
       return sub;
     }
 
     @Override
     public <T extends Event> void unsubscribe(Class<T> type, EventHandler<T> handler) {
       eventBus.unsubscribe(type, handler);
+      List<TrackedSubscription> subs = subscriptions.get(pluginName);
+      if (subs != null) {
+        subs.removeIf(ts -> ts.type == type && ts.handler == handler);
+      }
     }
 
     @Override

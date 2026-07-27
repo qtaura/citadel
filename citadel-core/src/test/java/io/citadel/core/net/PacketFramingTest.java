@@ -7,6 +7,7 @@ import io.citadel.core.net.protocol.StatusRequestPacket;
 import io.citadel.core.net.protocol.StatusResponsePacket;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
+import java.io.IOException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -66,5 +67,22 @@ class PacketFramingTest {
     byte[] data = {0x05, 0x00};
     DataInputStream in = new DataInputStream(new ByteArrayInputStream(data));
     assertThrows(Exception.class, () -> PacketFraming.readFrame(in));
+  }
+
+  @Test
+  void readFrameWithOnlyPacketIdNoPayload() throws Exception {
+    byte[] data = {0x01, 0x00};
+    DataInputStream in = new DataInputStream(new ByteArrayInputStream(data));
+    PacketFraming.FramedPacket framed = PacketFraming.readFrame(in);
+    assertEquals(0x00, framed.getPacketId());
+    assertEquals(0, framed.getPayload().length);
+  }
+
+  @Test
+  void negativeBodyLengthThrows() {
+    byte[] data = {(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 0x0F};
+    DataInputStream in = new DataInputStream(new ByteArrayInputStream(data));
+    IOException ex = assertThrows(IOException.class, () -> PacketFraming.readFrame(in));
+    assertTrue(ex.getMessage().contains("Negative"));
   }
 }

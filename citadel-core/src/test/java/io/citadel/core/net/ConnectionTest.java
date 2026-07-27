@@ -2,7 +2,10 @@ package io.citadel.core.net;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.citadel.api.event.Event;
 import io.citadel.api.event.EventBus;
+import io.citadel.api.event.network.ConnectionOpenedEvent;
+import io.citadel.api.event.network.ProtocolStateChangedEvent;
 import io.citadel.api.network.ConnectionState;
 import io.citadel.api.network.ProtocolState;
 import io.citadel.api.service.Logger;
@@ -73,6 +76,37 @@ class ConnectionTest {
   }
 
   @Test
+  void protocolStateCanTransitionToLoginAndConfiguration() {
+    Connection c = createConnection("localhost", 25565);
+    c.setProtocolState(ProtocolState.LOGIN);
+    c.setProtocolState(ProtocolState.CONFIGURATION);
+    assertEquals(ProtocolState.CONFIGURATION, c.getProtocolState());
+  }
+
+  @Test
+  void invalidProtocolTransitionThrows() {
+    Connection c = createConnection("localhost", 25565);
+    IllegalStateException ex =
+        assertThrows(IllegalStateException.class, () -> c.setProtocolState(ProtocolState.PLAY));
+    assertEquals("Invalid protocol transition: HANDSHAKE -> PLAY", ex.getMessage());
+  }
+
+  @Test
+  void protocolTransitionPublishesEvent() {
+    RecordingEventBus eventBus = new RecordingEventBus();
+    Connection c =
+        new Connection(
+            "localhost", 25565, CONNECT_TIMEOUT, READ_TIMEOUT, eventBus, new NoOpLogger());
+    c.setProtocolState(ProtocolState.LOGIN);
+
+    assertEquals(1, eventBus.events.size());
+    assertInstanceOf(ProtocolStateChangedEvent.class, eventBus.events.get(0));
+    ProtocolStateChangedEvent event = (ProtocolStateChangedEvent) eventBus.events.get(0);
+    assertEquals(ProtocolState.HANDSHAKE, event.getPreviousState());
+    assertEquals(ProtocolState.LOGIN, event.getNewState());
+  }
+
+  @Test
   void sendPacketBeforeConnectThrows() {
     Connection c = createConnection("localhost", 25565);
     assertThrows(
@@ -109,6 +143,43 @@ class ConnectionTest {
     }
   }
 
+  @Test
+  void connectPublishesConnectionOpenedEventWithCorrectPrevState() throws Exception {
+    RecordingEventBus eventBus = new RecordingEventBus();
+    try (ServerSocket server = new ServerSocket(0)) {
+      Connection c =
+          new Connection(
+              "localhost",
+              server.getLocalPort(),
+              CONNECT_TIMEOUT,
+              READ_TIMEOUT,
+              eventBus,
+              new NoOpLogger());
+      c.connect();
+      waitForConnected(c);
+
+      assertEquals(1, eventBus.events.size());
+      assertInstanceOf(ConnectionOpenedEvent.class, eventBus.events.get(0));
+      ConnectionOpenedEvent event = (ConnectionOpenedEvent) eventBus.events.get(0);
+      assertEquals(ConnectionState.CREATED, event.getPreviousState());
+      c.close();
+    }
+  }
+
+  @Test
+  void connectFailureClosesSocket() {
+    Connection c = createConnection("192.0.2.1", 25565);
+    assertThrows(java.io.IOException.class, c::connect);
+    assertEquals(ConnectionState.CLOSED, c.getState());
+  }
+
+  @Test
+  void connectToUnreachablePortClosesSocket() {
+    Connection c = createConnection("localhost", 1);
+    assertThrows(java.io.IOException.class, c::connect);
+    assertEquals(ConnectionState.CLOSED, c.getState());
+  }
+
   private static Connection createConnection(String host, int port) {
     return new Connection(
         host, port, CONNECT_TIMEOUT, READ_TIMEOUT, new NoOpEventBus(), new NoOpLogger());
@@ -139,6 +210,30 @@ class ConnectionTest {
 
     @Override
     public void publishAsync(io.citadel.api.event.Event event) {}
+  }
+
+  private static final class RecordingEventBus implements EventBus {
+    private final java.util.List<io.citadel.api.event.Event> events = new java.util.ArrayList<>();
+
+    @Override
+    public <T extends io.citadel.api.event.Event> io.citadel.api.event.Subscription subscribe(
+        Class<T> type, io.citadel.api.event.EventHandler<T> handler) {
+      return () -> {};
+    }
+
+    @Override
+    public <T extends io.citadel.api.event.Event> void unsubscribe(
+        Class<T> type, io.citadel.api.event.EventHandler<T> handler) {}
+
+    @Override
+    public void publish(io.citadel.api.event.Event event) {
+      events.add(event);
+    }
+
+    @Override
+    public void publishAsync(io.citadel.api.event.Event event) {
+      events.add(event);
+    }
   }
 
   private static final class NoOpLogger implements Logger {

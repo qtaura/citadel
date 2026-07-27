@@ -7,14 +7,14 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
-public final class StatusResponsePacket implements Packet {
+public final class DisconnectPacket implements Packet {
 
-  private String json;
+  private String reasonJson;
 
-  public StatusResponsePacket() {}
+  public DisconnectPacket() {}
 
-  public StatusResponsePacket(String json) {
-    this.json = json;
+  public DisconnectPacket(String reasonJson) {
+    this.reasonJson = reasonJson;
   }
 
   @Override
@@ -24,15 +24,15 @@ public final class StatusResponsePacket implements Packet {
 
   @Override
   public void write(DataOutput out) throws IOException {
-    MinecraftStrings.write(json, out);
+    MinecraftStrings.write(reasonJson, out);
   }
 
   @Override
   public void read(DataInput in) throws IOException {
-    this.json = MinecraftStrings.read(in);
+    this.reasonJson = MinecraftStrings.read(in);
   }
 
-  public String getJson() {
-    return json;
+  public String getReasonJson() {
+    return reasonJson;
   }
 }

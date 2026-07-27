@@ -5,6 +5,7 @@ import io.citadel.api.event.network.ConnectionClosedEvent;
 import io.citadel.api.event.network.ConnectionOpenedEvent;
 import io.citadel.api.event.network.PacketReceivedEvent;
 import io.citadel.api.event.network.PacketSentEvent;
+import io.citadel.api.event.network.ProtocolStateChangedEvent;
 import io.citadel.api.network.ConnectionState;
 import io.citadel.api.network.ProtocolState;
 import io.citadel.api.service.Logger;
@@ -24,7 +25,7 @@ public final class Connection implements Closeable {
   private final String host;
   private final int port;
   private final int connectTimeout;
-  private final int readTimeout;
+  private int readTimeout;
   private final EventBus eventBus;
   private final Logger logger;
 
@@ -53,10 +54,11 @@ public final class Connection implements Closeable {
     if (!state.compareAndSet(ConnectionState.CREATED, ConnectionState.CONNECTING)) {
       throw new IllegalStateException("Cannot connect from state: " + state.get());
     }
-    ConnectionState prev = state.get();
+    ConnectionState prev = ConnectionState.CREATED;
     logger.info("Connecting to {}:{} ...", host, port);
+    Socket s = null;
     try {
-      Socket s = new Socket();
+      s = new Socket();
       s.connect(new InetSocketAddress(host, port), connectTimeout);
       s.setSoTimeout(readTimeout);
       this.socket = s;
@@ -66,6 +68,12 @@ public final class Connection implements Closeable {
       logger.info("Connected to {}:{}", host, port);
       eventBus.publishAsync(new ConnectionOpenedEvent(host, port, prev));
     } catch (IOException e) {
+      if (s != null) {
+        try {
+          s.close();
+        } catch (IOException ignored) {
+        }
+      }
       state.set(ConnectionState.CLOSED);
       logger.error("Failed to connect to {}:{}: {}", host, port, e.getMessage());
       throw e;
@@ -107,7 +115,15 @@ public final class Connection implements Closeable {
   }
 
   public void setProtocolState(ProtocolState newState) {
-    protocolState.set(Objects.requireNonNull(newState, "newState"));
+    Objects.requireNonNull(newState, "newState");
+    ProtocolState prev = protocolState.get();
+    if (prev == newState) {
+      return;
+    }
+    validateTransition(prev, newState);
+    protocolState.set(newState);
+    logger.info("Protocol state changed for {}:{}: {} -> {}", host, port, prev, newState);
+    eventBus.publishAsync(new ProtocolStateChangedEvent(host, port, prev, newState));
   }
 
   public ProtocolState getProtocolState() {
@@ -147,9 +163,30 @@ public final class Connection implements Closeable {
     return port;
   }
 
+  public void setReadTimeout(int readTimeout) throws IOException {
+    if (readTimeout <= 0) {
+      throw new IllegalArgumentException("readTimeout must be positive");
+    }
+    this.readTimeout = readTimeout;
+    if (socket != null) {
+      socket.setSoTimeout(readTimeout);
+    }
+  }
+
   private void ensureConnected() {
     if (state.get() != ConnectionState.CONNECTED) {
       throw new IllegalStateException("Not connected (state=" + state.get() + ")");
+    }
+  }
+
+  private static void validateTransition(ProtocolState current, ProtocolState next) {
+    boolean allowed =
+        (current == ProtocolState.HANDSHAKE
+                && (next == ProtocolState.STATUS || next == ProtocolState.LOGIN))
+            || (current == ProtocolState.LOGIN && next == ProtocolState.CONFIGURATION)
+            || (current == ProtocolState.CONFIGURATION && next == ProtocolState.PLAY);
+    if (!allowed) {
+      throw new IllegalStateException("Invalid protocol transition: " + current + " -> " + next);
     }
   }
 

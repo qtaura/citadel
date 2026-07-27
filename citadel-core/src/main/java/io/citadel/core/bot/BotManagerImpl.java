@@ -10,13 +10,14 @@ import io.citadel.api.service.Logger;
 import io.citadel.core.auth.AuthenticationService;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class BotManagerImpl implements BotManager {
 
-  private final ConcurrentHashMap<UUID, Bot> bots;
+  private final Map<UUID, Bot> bots;
   private final AccountManager accountManager;
   private final AuthenticationService authenticationService;
   private final EventBus eventBus;

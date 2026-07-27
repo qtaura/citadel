@@ -21,6 +21,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+@SuppressWarnings("PMD.ExceptionAsFlowControl")
 public final class BotImpl implements Bot {
 
   private static final int DEFAULT_CONNECT_TIMEOUT = 5000;
@@ -224,6 +225,7 @@ public final class BotImpl implements Bot {
     }
   }
 
+  @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
   private boolean transitionTo(BotState target) {
     while (true) {
       BotState current = state.get();

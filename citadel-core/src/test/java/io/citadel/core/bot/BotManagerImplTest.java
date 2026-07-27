@@ -249,7 +249,7 @@ class BotManagerImplTest {
   // ---- Test stubs ----
 
   private static final class TestAccountManager implements AccountManager {
-    private final java.util.concurrent.ConcurrentHashMap<String, Account> accounts =
+    private final java.util.Map<String, Account> accounts =
         new java.util.concurrent.ConcurrentHashMap<>();
 
     void add(Account account) {
@@ -262,7 +262,7 @@ class BotManagerImplTest {
     }
 
     @Override
-    public java.util.List<Account> getAll() {
+    public List<Account> getAll() {
       return List.copyOf(accounts.values());
     }
 
@@ -292,17 +292,17 @@ class BotManagerImplTest {
     }
 
     @Override
-    public java.util.List<Account> findEnabled() {
+    public List<Account> findEnabled() {
       return accounts.values().stream().filter(Account::enabled).toList();
     }
 
     @Override
-    public java.util.List<Account> findByTag(String tag) {
+    public List<Account> findByTag(String tag) {
       return accounts.values().stream().filter(a -> a.tags().contains(tag)).toList();
     }
 
     @Override
-    public java.util.List<Account> findByServer(String server) {
+    public List<Account> findByServer(String server) {
       return accounts.values().stream()
           .filter(a -> a.server().isPresent() && a.server().get().equals(server))
           .toList();

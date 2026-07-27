@@ -50,6 +50,7 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
     this.logger = Objects.requireNonNull(logger, "logger");
   }
 
+  @Override
   public void connect() throws IOException {
     if (!state.compareAndSet(ConnectionState.CREATED, ConnectionState.CONNECTING)) {
       throw new IllegalStateException("Cannot connect from state: " + state.get());
@@ -126,14 +127,17 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
     eventBus.publishAsync(new ProtocolStateChangedEvent(host, port, prev, newState));
   }
 
+  @Override
   public ProtocolState getProtocolState() {
     return protocolState.get();
   }
 
+  @Override
   public ConnectionState getState() {
     return state.get();
   }
 
+  @Override
   public boolean isConnected() {
     return state.get() == ConnectionState.CONNECTED && socket != null && socket.isConnected();
   }
@@ -155,14 +159,17 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
     eventBus.publishAsync(new ConnectionClosedEvent(host, port, prev, "connection closed"));
   }
 
+  @Override
   public String getHost() {
     return host;
   }
 
+  @Override
   public int getPort() {
     return port;
   }
 
+  @Override
   public void setReadTimeout(int readTimeout) throws IOException {
     if (readTimeout <= 0) {
       throw new IllegalArgumentException("readTimeout must be positive");

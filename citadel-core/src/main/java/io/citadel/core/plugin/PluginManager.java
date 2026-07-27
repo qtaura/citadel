@@ -38,7 +38,7 @@ public final class PluginManager {
   private final Path pluginsDataDirectory;
   private final String coreApiVersion;
   private final List<PluginDescriptor> plugins;
-  private PluginSubscriptionTracker subscriptionTracker;
+  private volatile PluginSubscriptionTracker subscriptionTracker;
 
   public PluginManager(
       ServiceRegistry serviceRegistry,
@@ -196,10 +196,20 @@ public final class PluginManager {
   }
 
   private PluginSubscriptionTracker getSubscriptionTracker() {
-    if (subscriptionTracker == null) {
-      this.subscriptionTracker =
-          serviceRegistry.get(EventBus.class).map(PluginSubscriptionTracker::new).orElse(null);
+    PluginSubscriptionTracker result = this.subscriptionTracker;
+    if (result == null) {
+      synchronized (this) {
+        result = this.subscriptionTracker;
+        if (result == null) {
+          this.subscriptionTracker =
+              result =
+                  serviceRegistry
+                      .get(EventBus.class)
+                      .map(PluginSubscriptionTracker::new)
+                      .orElse(null);
+        }
+      }
     }
-    return subscriptionTracker;
+    return result;
   }
 }

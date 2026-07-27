@@ -36,7 +36,6 @@ public final class PluginDescriptor {
     this.mainClassName = mainClassName;
     this.jarPath = jarPath;
     this.annotation = annotation;
-    this.state = PluginState.LOADED;
   }
 
   public String getName() {

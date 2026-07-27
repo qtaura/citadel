@@ -40,6 +40,13 @@ public final class PacketFraming {
     DataInputStream bodyIn = new DataInputStream(new ByteArrayInputStream(body));
     int packetId = VarInt.read((java.io.DataInput) bodyIn);
     int headerSize = VarInt.size(packetId);
+    if (headerSize > bodyLength) {
+      throw new IOException(
+          "Invalid frame: header size "
+              + headerSize
+              + " exceeds body length "
+              + bodyLength);
+    }
     byte[] payload = new byte[bodyLength - headerSize];
     if (payload.length > 0) {
       bodyIn.readFully(payload);

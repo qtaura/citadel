@@ -194,7 +194,10 @@ public final class CitadelConfiguration implements Configuration {
   }
 
   private void generateDefaultConfig() throws IOException {
-    Files.createDirectories(configFile.getParent());
+    Path parent = configFile.getParent();
+    if (parent != null) {
+      Files.createDirectories(parent);
+    }
     String defaultYaml = DefaultConfiguration.generate();
     Files.writeString(configFile, defaultYaml);
   }

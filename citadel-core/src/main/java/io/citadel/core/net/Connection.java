@@ -54,10 +54,11 @@ public final class Connection implements Closeable {
     if (!state.compareAndSet(ConnectionState.CREATED, ConnectionState.CONNECTING)) {
       throw new IllegalStateException("Cannot connect from state: " + state.get());
     }
-    ConnectionState prev = state.get();
+    ConnectionState prev = ConnectionState.CREATED;
     logger.info("Connecting to {}:{} ...", host, port);
+    Socket s = null;
     try {
-      Socket s = new Socket();
+      s = new Socket();
       s.connect(new InetSocketAddress(host, port), connectTimeout);
       s.setSoTimeout(readTimeout);
       this.socket = s;
@@ -67,6 +68,12 @@ public final class Connection implements Closeable {
       logger.info("Connected to {}:{}", host, port);
       eventBus.publishAsync(new ConnectionOpenedEvent(host, port, prev));
     } catch (IOException e) {
+      if (s != null) {
+        try {
+          s.close();
+        } catch (IOException ignored) {
+        }
+      }
       state.set(ConnectionState.CLOSED);
       logger.error("Failed to connect to {}:{}: {}", host, port, e.getMessage());
       throw e;

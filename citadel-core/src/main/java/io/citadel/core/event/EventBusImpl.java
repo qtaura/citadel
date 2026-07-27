@@ -12,107 +12,100 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class EventBusImpl implements EventBus {
 
-  private final Map<Class<?>, List<HandlerEntry<?>>> handlers;
-  private final ExecutorService executor;
   private final Logger logger;
-  private volatile boolean isShutDown;
-
-  private static final class HandlerEntry<T extends Event> {
-    final EventHandler<T> handler;
-    final AtomicBoolean cancelled = new AtomicBoolean(false);
-    final Subscription subscription;
-
-    HandlerEntry(EventHandler<T> handler) {
-      this.handler = handler;
-      this.subscription = () -> cancelled.set(true);
-    }
-  }
+  private final Map<Class<?>, List<HandlerEntry>> handlers;
+  private final ExecutorService asyncExecutor;
+  private final AtomicBoolean shutdown;
 
   public EventBusImpl(Logger logger) {
-    this.handlers = new ConcurrentHashMap<>();
-    this.executor = Executors.newCachedThreadPool(r -> new Thread(r, "event-bus"));
     this.logger = logger;
+    this.handlers = new ConcurrentHashMap<>();
+    this.asyncExecutor = Executors.newVirtualThreadPerTaskExecutor();
+    this.shutdown = new AtomicBoolean(false);
   }
 
   @Override
-  @SuppressWarnings("PMD.CompareObjectsWithEquals")
   public <T extends Event> Subscription subscribe(Class<T> type, EventHandler<T> handler) {
     Objects.requireNonNull(type, "type must not be null");
     Objects.requireNonNull(handler, "handler must not be null");
-    HandlerEntry<T> entry = new HandlerEntry<>(handler);
-    @SuppressWarnings("PMD.LooseCoupling")
-    CopyOnWriteArrayList<HandlerEntry<?>> list =
-        (CopyOnWriteArrayList<HandlerEntry<?>>)
-            handlers.computeIfAbsent(type, k -> new CopyOnWriteArrayList<>());
 
-    synchronized (list) {
-      for (HandlerEntry<?> existing : list) {
-        if (existing.handler == handler) {
-          return existing.subscription;
-        }
+    List<HandlerEntry> entries =
+        handlers.computeIfAbsent(type, k -> new CopyOnWriteArrayList<>());
+
+    for (HandlerEntry entry : entries) {
+      if (!entry.cancelled.get() && entry.handler == handler) {
+        return entry.subscription;
       }
-      list.add(entry);
     }
 
+    var entry = new HandlerEntry(handler);
+    entries.add(entry);
+    entry.subscription =
+        () -> {
+          if (entry.cancelled.compareAndSet(false, true)) {
+            entries.remove(entry);
+          }
+        };
     return entry.subscription;
   }
 
   @Override
-  @SuppressWarnings("PMD.CompareObjectsWithEquals")
   public <T extends Event> void unsubscribe(Class<T> type, EventHandler<T> handler) {
     Objects.requireNonNull(type, "type must not be null");
     Objects.requireNonNull(handler, "handler must not be null");
-    List<HandlerEntry<?>> list = handlers.get(type);
-    if (list != null) {
-      list.removeIf(e -> e.handler == handler);
+
+    List<HandlerEntry> entries = handlers.get(type);
+    if (entries != null) {
+      for (HandlerEntry entry : entries) {
+        if (entry.handler == handler) {
+          entry.cancelled.set(true);
+        }
+      }
+      entries.removeIf(e -> e.cancelled.get());
     }
   }
 
   @Override
   public void publish(Event event) {
     Objects.requireNonNull(event, "event must not be null");
-    dispatch(event, false);
+    dispatch(event);
   }
 
   @Override
   public void publishAsync(Event event) {
     Objects.requireNonNull(event, "event must not be null");
-    if (isShutDown) {
+    if (shutdown.get()) {
       return;
     }
-    executor.submit(() -> dispatch(event, true));
-  }
-
-  public void shutdown() {
-    isShutDown = true;
-    executor.shutdown();
     try {
-      if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
-        executor.shutdownNow();
-      }
-    } catch (InterruptedException e) {
-      executor.shutdownNow();
-      Thread.currentThread().interrupt();
+      asyncExecutor.execute(() -> dispatch(event));
+    } catch (RejectedExecutionException e) {
+      // Executor was shut down between the check and execute
     }
   }
 
-  boolean shutdownComplete(long timeout, TimeUnit unit) throws InterruptedException {
-    return executor.awaitTermination(0, unit);
-  }
-
-  private void dispatch(Event event, boolean isAsync) {
+  private void dispatch(Event event) {
     Class<?> type = event.getClass();
-    while (type != null && Event.class.isAssignableFrom(type)) {
-      List<HandlerEntry<?>> list = handlers.get(type);
-      if (list != null) {
-        for (HandlerEntry<?> entry : list) {
+    while (type != null && type != Object.class && Event.class.isAssignableFrom(type)) {
+      List<HandlerEntry> entries = handlers.get(type);
+      if (entries != null) {
+        for (HandlerEntry entry : entries) {
           if (!entry.cancelled.get()) {
-            invokeHandler(entry, event, isAsync);
+            try {
+              @SuppressWarnings("unchecked")
+              EventHandler<Event> handler = (EventHandler<Event>) entry.handler;
+              handler.handle(event);
+            } catch (Exception e) {
+              logger.error(
+                  "Event handler threw exception for event type {}",
+                  event.getClass().getName());
+            }
           }
         }
       }
@@ -120,16 +113,31 @@ public final class EventBusImpl implements EventBus {
     }
   }
 
-  @SuppressWarnings("unchecked")
-  private void invokeHandler(HandlerEntry<?> entry, Event event, boolean isAsync) {
+  public void shutdown() {
+    shutdown.set(true);
+    asyncExecutor.shutdown();
+  }
+
+  boolean shutdownComplete(long timeout, TimeUnit unit) {
     try {
-      ((EventHandler<Event>) entry.handler).handle(event);
-    } catch (Exception e) {
-      logger.error(
-          "Event handler threw exception processing {} (async={}): {}",
-          event.getClass().getSimpleName(),
-          isAsync,
-          e.getMessage());
+      return asyncExecutor.awaitTermination(timeout, unit);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return false;
+    }
+  }
+
+  boolean isShutdown() {
+    return shutdown.get();
+  }
+
+  static final class HandlerEntry {
+    final EventHandler<?> handler;
+    final AtomicBoolean cancelled = new AtomicBoolean(false);
+    Subscription subscription;
+
+    HandlerEntry(EventHandler<?> handler) {
+      this.handler = handler;
     }
   }
 }

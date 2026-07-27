@@ -2,7 +2,9 @@ package io.citadel.core.net;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.citadel.api.event.Event;
 import io.citadel.api.event.EventBus;
+import io.citadel.api.event.network.ConnectionOpenedEvent;
 import io.citadel.api.event.network.ProtocolStateChangedEvent;
 import io.citadel.api.network.ConnectionState;
 import io.citadel.api.network.ProtocolState;
@@ -139,6 +141,43 @@ class ConnectionTest {
       assertEquals(ConnectionState.CLOSED, c.getState());
       serverThread.join(2000);
     }
+  }
+
+  @Test
+  void connectPublishesConnectionOpenedEventWithCorrectPrevState() throws Exception {
+    RecordingEventBus eventBus = new RecordingEventBus();
+    try (ServerSocket server = new ServerSocket(0)) {
+      Connection c =
+          new Connection(
+              "localhost",
+              server.getLocalPort(),
+              CONNECT_TIMEOUT,
+              READ_TIMEOUT,
+              eventBus,
+              new NoOpLogger());
+      c.connect();
+      waitForConnected(c);
+
+      assertEquals(1, eventBus.events.size());
+      assertInstanceOf(ConnectionOpenedEvent.class, eventBus.events.get(0));
+      ConnectionOpenedEvent event = (ConnectionOpenedEvent) eventBus.events.get(0);
+      assertEquals(ConnectionState.CREATED, event.getPreviousState());
+      c.close();
+    }
+  }
+
+  @Test
+  void connectFailureClosesSocket() {
+    Connection c = createConnection("192.0.2.1", 25565);
+    assertThrows(java.io.IOException.class, c::connect);
+    assertEquals(ConnectionState.CLOSED, c.getState());
+  }
+
+  @Test
+  void connectToUnreachablePortClosesSocket() {
+    Connection c = createConnection("localhost", 1);
+    assertThrows(java.io.IOException.class, c::connect);
+    assertEquals(ConnectionState.CLOSED, c.getState());
   }
 
   private static Connection createConnection(String host, int port) {

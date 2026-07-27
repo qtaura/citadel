@@ -14,6 +14,14 @@ import org.junit.jupiter.api.io.TempDir;
 class CitadelConfigurationTest {
 
   @Test
+  void loadWithBareFilenameDoesNotThrowNpe(@TempDir Path tempDir) {
+    Path configFile = tempDir.resolve("bare.yml");
+    CitadelConfiguration config = new CitadelConfiguration(configFile);
+    assertDoesNotThrow(config::load);
+    assertTrue(Files.exists(configFile));
+  }
+
+  @Test
   void generatesDefaultConfigOnFirstLoad(@TempDir Path tempDir) {
     Path configFile = tempDir.resolve("citadel.yml");
     CitadelConfiguration config = new CitadelConfiguration(configFile);

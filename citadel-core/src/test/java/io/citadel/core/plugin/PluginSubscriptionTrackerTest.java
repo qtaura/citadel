@@ -176,6 +176,30 @@ class PluginSubscriptionTrackerTest {
     assertEquals(1, received.size());
   }
 
+  @Test
+  void manualUnsubscribeCleansTrackedList() {
+    List<Event> received = new ArrayList<>();
+    EventHandler<TestEvent> handler = received::add;
+    pluginBus.subscribe(TestEvent.class, handler);
+
+    pluginBus.unsubscribe(TestEvent.class, handler);
+
+    tracker.cancelAll("TestPlugin");
+
+    eventBus.publish(new TestEvent());
+    assertEquals(0, received.size(), "handler should not fire after cancelAll");
+  }
+
+  @Test
+  void manualUnsubscribeThenCancelAllDoesNotThrow() {
+    EventHandler<TestEvent> handler = e -> {};
+    pluginBus.subscribe(TestEvent.class, handler);
+
+    pluginBus.unsubscribe(TestEvent.class, handler);
+
+    assertDoesNotThrow(() -> tracker.cancelAll("TestPlugin"));
+  }
+
   // --- Concurrent publish during shutdown ---
 
   @Test

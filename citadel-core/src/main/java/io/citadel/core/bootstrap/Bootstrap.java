@@ -9,7 +9,7 @@ import io.citadel.core.config.CitadelConfiguration;
 import io.citadel.core.event.EventBusImpl;
 import io.citadel.core.logging.LoggingService;
 import io.citadel.core.plugin.PluginManager;
-import io.citadel.core.service.NoOpAccountManager;
+import io.citadel.core.service.AccountManagerImpl;
 import io.citadel.core.service.NoOpScheduler;
 import java.nio.file.Path;
 
@@ -51,6 +51,10 @@ public final class Bootstrap {
     this.eventBus = new EventBusImpl(rootLogger);
     serviceRegistry.register(EventBus.class, eventBus);
     rootLogger.info("Event bus initialized");
+
+    AccountManagerImpl accountManager = new AccountManagerImpl(configuration, eventBus, rootLogger);
+    serviceRegistry.register(AccountManager.class, accountManager);
+    rootLogger.info("Loaded {} account(s) from configuration", accountManager.size());
 
     registerNoOpServices(serviceRegistry);
 
@@ -112,6 +116,5 @@ public final class Bootstrap {
 
   private static void registerNoOpServices(ServiceRegistry registry) {
     registry.register(Scheduler.class, new NoOpScheduler());
-    registry.register(AccountManager.class, new NoOpAccountManager());
   }
 }

@@ -31,9 +31,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
-@SuppressWarnings({"PMD.CouplingBetweenObjects", "PMD.ExcessiveImports"})
+@SuppressWarnings({
+  "PMD.CouplingBetweenObjects",
+  "PMD.ExcessiveImports",
+  "PMD.AvoidInstantiatingObjectsInLoops"
+})
 class AuthenticationServiceTest {
 
   private static final int CONNECT_TIMEOUT = 3000;
@@ -131,12 +140,146 @@ class AuthenticationServiceTest {
     assertEquals(10000, auth.getLoginTimeout());
   }
 
+  @Test
+  void multipleSequentialLoginsOnDifferentConnections() throws Exception {
+    int count = 3;
+    AtomicInteger successes = new AtomicInteger(0);
+
+    try (MultiAcceptMockServer server =
+        new MultiAcceptMockServer(new LoginSuccessPacket(UUID.randomUUID(), "SeqUser"), count)) {
+      for (int i = 0; i < count; i++) {
+        int idx = i;
+        Connection connection =
+            connect(new RecordingEventBus(), new TestLogger(), server.getLocalPort(), 5000);
+        AuthenticationService auth =
+            new AuthenticationService(new RecordingEventBus(), new TestLogger(), new TestConfig());
+        Session session = auth.login(connection, Account.offline("User" + idx));
+        assertNotNull(session);
+        successes.incrementAndGet();
+        connection.close();
+      }
+    }
+    assertEquals(count, successes.get(), "all sequential logins should succeed");
+  }
+
+  @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
+  @Test
+  void concurrentLoginAttemptsSucceedIndependently() throws Exception {
+    int count = 3;
+    CountDownLatch latch = new CountDownLatch(count);
+    AtomicInteger successes = new AtomicInteger(0);
+    ExecutorService executor = Executors.newFixedThreadPool(count);
+
+    try (MultiAcceptMockServer server =
+        new MultiAcceptMockServer(
+            new LoginSuccessPacket(UUID.randomUUID(), "ConcurrentUser"), count)) {
+      for (int i = 0; i < count; i++) {
+        int idx = i;
+        executor.submit(
+            () -> {
+              try {
+                Connection connection =
+                    connect(new RecordingEventBus(), new TestLogger(), server.getLocalPort(), 5000);
+                AuthenticationService auth =
+                    new AuthenticationService(
+                        new RecordingEventBus(), new TestLogger(), new TestConfig());
+                Session session = auth.login(connection, Account.offline("User" + idx));
+                assertNotNull(session);
+                successes.incrementAndGet();
+                connection.close();
+              } catch (Exception e) {
+                // countdown regardless
+              } finally {
+                latch.countDown();
+              }
+            });
+      }
+      assertTrue(latch.await(10, TimeUnit.SECONDS), "all login attempts should complete");
+      executor.shutdown();
+      assertTrue(executor.awaitTermination(2, TimeUnit.SECONDS));
+    }
+    assertEquals(count, successes.get(), "all concurrent logins should succeed");
+  }
+
   private static Connection connect(EventBus eventBus, Logger logger, int port, int readTimeout)
       throws IOException {
     Connection connection =
         new Connection("localhost", port, CONNECT_TIMEOUT, readTimeout, eventBus, logger);
     connection.connect();
     return connection;
+  }
+
+  private static final class MultiAcceptMockServer implements AutoCloseable {
+    private static final PacketCodec HANDSHAKE_CODEC =
+        new PacketCodec() {
+          @Override
+          public int getPacketId() {
+            return 0x00;
+          }
+
+          @Override
+          public Packet create() {
+            return new HandshakePacket();
+          }
+        };
+    private static final PacketCodec LOGIN_START_CODEC =
+        new PacketCodec() {
+          @Override
+          public int getPacketId() {
+            return 0x00;
+          }
+
+          @Override
+          public Packet create() {
+            return new LoginStartPacket();
+          }
+        };
+    private final ServerSocket serverSocket;
+    private final Thread thread;
+
+    MultiAcceptMockServer(Packet response, int acceptCount) throws IOException {
+      this.serverSocket = new ServerSocket(0);
+      this.thread = new Thread(() -> run(response, acceptCount));
+      this.thread.start();
+    }
+
+    int getLocalPort() {
+      return serverSocket.getLocalPort();
+    }
+
+    private void run(Packet response, int acceptCount) {
+      for (int i = 0; i < acceptCount; i++) {
+        try (Socket socket = serverSocket.accept()) {
+          DataInputStream in = new DataInputStream(socket.getInputStream());
+          DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+          PacketFraming.FramedPacket handshake = PacketFraming.readFrame(in);
+          PacketFraming.decode(handshake.getPacketId(), handshake.getPayload(), HANDSHAKE_CODEC);
+          PacketFraming.FramedPacket loginStart = PacketFraming.readFrame(in);
+          PacketFraming.decode(
+              loginStart.getPacketId(), loginStart.getPayload(), LOGIN_START_CODEC);
+          if (response != null) {
+            out.write(PacketFraming.encode(response.getPacketId(ProtocolState.LOGIN), response));
+            out.flush();
+          }
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+      }
+    }
+
+    @Override
+    public void close() {
+      try {
+        serverSocket.close();
+      } catch (IOException e) {
+        // ignore test cleanup failures
+      }
+      try {
+        thread.join(2000);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+    }
   }
 
   private static final class LoginMockServer implements AutoCloseable {

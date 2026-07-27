@@ -39,6 +39,15 @@ class DefaultConfigurationTest {
   }
 
   @Test
+  @SuppressWarnings("unchecked")
+  void generatedConfigContainsConnectionSection() {
+    String yaml = DefaultConfiguration.generate();
+    Map<String, Object> parsed = new YamlConfigurationLoader().load(yaml);
+    assertNotNull(parsed.get("connection"));
+    assertEquals(10000, ((Map<String, Object>) parsed.get("connection")).get("login_timeout"));
+  }
+
+  @Test
   void generatedConfigContainsProxiesSection() {
     String yaml = DefaultConfiguration.generate();
     Map<String, Object> parsed = new YamlConfigurationLoader().load(yaml);

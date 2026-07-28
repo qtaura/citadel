@@ -25,7 +25,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 public final class WorldManagerImpl implements WorldManager {
 
-  private final ConcurrentMap<ChunkPos, Chunk> chunks;
+  private final ConcurrentMap<Long, Chunk> chunks;
   private final EventBus eventBus;
   private final Logger logger;
   private final UUID botId;
@@ -44,8 +44,7 @@ public final class WorldManagerImpl implements WorldManager {
 
   @Override
   public BlockState getBlock(BlockPos position) {
-    ChunkPos cp = position.chunkPos();
-    Chunk chunk = chunks.get(cp);
+    Chunk chunk = chunks.get(ChunkPos.packed(position.x() >> 4, position.z() >> 4));
     if (chunk == null) {
       return BlockState.AIR;
     }
@@ -53,13 +52,22 @@ public final class WorldManagerImpl implements WorldManager {
   }
 
   @Override
+  public BlockState getBlock(int x, int y, int z) {
+    Chunk chunk = chunks.get(ChunkPos.packed(x >> 4, z >> 4));
+    if (chunk == null) {
+      return BlockState.AIR;
+    }
+    return chunk.getBlock(x & 0xF, y, z & 0xF);
+  }
+
+  @Override
   public Chunk getChunk(ChunkPos position) {
-    return chunks.get(position);
+    return chunks.get(position.packed());
   }
 
   @Override
   public boolean isChunkLoaded(ChunkPos position) {
-    return chunks.containsKey(position);
+    return chunks.containsKey(position.packed());
   }
 
   @Override
@@ -84,16 +92,20 @@ public final class WorldManagerImpl implements WorldManager {
   public void onChunkData(ChunkDataPacket packet) {
     ChunkPos pos = packet.getChunkPos();
     Chunk chunk = new Chunk(pos, packet.getBlocks());
-    chunks.put(pos, chunk);
+    chunks.put(pos.packed(), chunk);
     eventBus.publishAsync(new ChunkLoadedEvent(botId, accountId, pos));
   }
 
   public void onBlockUpdate(BlockUpdatePacket packet) {
     BlockPos pos = packet.getPos();
-    ChunkPos cp = pos.chunkPos();
-    Chunk oldChunk = chunks.get(cp);
+    long packedCp = ChunkPos.packed(pos.x() >> 4, pos.z() >> 4);
+    Chunk oldChunk = chunks.get(packedCp);
     if (oldChunk == null) {
-      logger.warn("Block update for unloaded chunk {} (bot {})", cp, botId);
+      logger.warn(
+          "Block update for unloaded chunk at ({}, {}) (bot {})",
+          pos.x() >> 4,
+          pos.z() >> 4,
+          botId);
       return;
     }
     int lx = pos.x() & 0xF;
@@ -105,8 +117,9 @@ public final class WorldManagerImpl implements WorldManager {
     }
     BlockState[] newBlocks = oldChunk.getBlocks();
     newBlocks[Chunk.index(lx, ly, lz)] = packet.getState();
+    ChunkPos cp = ChunkPos.unpack(packedCp);
     Chunk newChunk = new Chunk(cp, newBlocks);
-    chunks.put(cp, newChunk);
+    chunks.put(packedCp, newChunk);
     eventBus.publishAsync(
         new BlockUpdatedEvent(botId, accountId, pos, oldState, packet.getState()));
   }
@@ -114,7 +127,7 @@ public final class WorldManagerImpl implements WorldManager {
   @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
   public void onMultiBlockUpdate(MultiBlockUpdatePacket packet) {
     ChunkPos cp = packet.getChunkPos();
-    Chunk oldChunk = chunks.get(cp);
+    Chunk oldChunk = chunks.get(cp.packed());
     if (oldChunk == null) {
       logger.warn("Multi-block update for unloaded chunk {} (bot {})", cp, botId);
       return;
@@ -136,12 +149,12 @@ public final class WorldManagerImpl implements WorldManager {
       }
     }
     Chunk newChunk = new Chunk(cp, newBlocks);
-    chunks.put(cp, newChunk);
+    chunks.put(cp.packed(), newChunk);
   }
 
   public void onChunkUnload(ChunkUnloadPacket packet) {
     ChunkPos pos = packet.getChunkPos();
-    Chunk removed = chunks.remove(pos);
+    Chunk removed = chunks.remove(pos.packed());
     if (removed != null) {
       eventBus.publishAsync(new ChunkUnloadedEvent(botId, accountId, pos));
     }

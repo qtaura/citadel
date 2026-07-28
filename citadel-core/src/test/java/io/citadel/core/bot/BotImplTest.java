@@ -64,9 +64,12 @@ class BotImplTest {
   @Test
   void startOnStartingBotReturnsSameFuture() {
     BotImpl bot = createTestBot("a1", trueAccount("a1"));
+    CountDownLatch blocker = new CountDownLatch(1);
+    bot.startBlocker = blocker;
     CompletableFuture<Void> f1 = bot.start();
     CompletableFuture<Void> f2 = bot.start();
     assertSame(f1, f2);
+    blocker.countDown();
   }
 
   @Test
@@ -119,25 +122,31 @@ class BotImplTest {
   void stopOnRunningBotSetsStopping() {
     BotImpl bot = createTestBot("a1", trueAccount("a1"));
     forceState(bot, BotState.RUNNING);
+    bot.stopBlocker = new CountDownLatch(1);
     bot.stop();
     assertEquals(BotState.STOPPING, bot.getState());
+    bot.stopBlocker.countDown();
   }
 
   @Test
   void stopOnStoppingBotReturnsSameFuture() {
     BotImpl bot = createTestBot("a1", trueAccount("a1"));
     forceState(bot, BotState.RUNNING);
+    bot.stopBlocker = new CountDownLatch(1);
     CompletableFuture<Void> f1 = bot.stop();
     CompletableFuture<Void> f2 = bot.stop();
     assertSame(f1, f2);
+    bot.stopBlocker.countDown();
   }
 
   @Test
   void stopOnStartingBotTransitionsToStopping() {
     BotImpl bot = createTestBot("a1", trueAccount("a1"));
+    bot.stopBlocker = new CountDownLatch(1);
     bot.start();
     bot.stop();
     assertEquals(BotState.STOPPING, bot.getState());
+    bot.stopBlocker.countDown();
   }
 
   @Test

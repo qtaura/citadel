@@ -256,11 +256,18 @@ class BotImplTest {
   }
 
   @Test
-  void startFromStoppedTransitionsToStarting() {
+  void startFromStoppedTransitionsToStarting() throws Exception {
     BotImpl bot = createTestBot("a1", trueAccount("a1"));
     forceState(bot, BotState.STOPPED);
+    CountDownLatch blocker = new CountDownLatch(1);
+    bot.startBlocker = blocker;
     bot.start();
     assertEquals(BotState.STARTING, bot.getState());
+    blocker.countDown();
+    try {
+      bot.start().get(5, TimeUnit.SECONDS);
+    } catch (Exception expected) {
+    }
   }
 
   @Test

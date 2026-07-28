@@ -50,6 +50,9 @@ public final class BotImpl implements Bot {
   // Visible for testing; when non-null, startPipeline awaits this latch before proceeding
   volatile CountDownLatch startBlocker;
 
+  // Visible for testing; when non-null, stopPipeline awaits this latch before proceeding
+  volatile CountDownLatch stopBlocker;
+
   public BotImpl(
       String accountId,
       AccountManager accountManager,
@@ -213,6 +216,9 @@ public final class BotImpl implements Bot {
 
   private void stopPipeline(CompletableFuture<Void> future) {
     try {
+      if (stopBlocker != null) {
+        stopBlocker.await();
+      }
       cleanup();
       state.set(BotState.STOPPED);
       logger.info("Bot {} stopped", botId);

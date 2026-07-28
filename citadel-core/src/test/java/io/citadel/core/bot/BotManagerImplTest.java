@@ -148,9 +148,13 @@ class BotManagerImplTest {
     BotImpl b2 = (BotImpl) mgr.create("a2");
     b1.forceState(BotState.RUNNING);
     b2.forceState(BotState.RUNNING);
+    b1.stopBlocker = new CountDownLatch(1);
+    b2.stopBlocker = new CountDownLatch(1);
     mgr.stopAll();
     assertEquals(BotState.STOPPING, b1.getState());
     assertEquals(BotState.STOPPING, b2.getState());
+    b1.stopBlocker.countDown();
+    b2.stopBlocker.countDown();
   }
 
   @Test

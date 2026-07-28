@@ -150,10 +150,12 @@ class BotImplTest {
   @Test
   void stopOnStartingBotTransitionsToStopping() {
     BotImpl bot = createTestBot("a1", trueAccount("a1"));
+    bot.startBlocker = new CountDownLatch(1);
     bot.stopBlocker = new CountDownLatch(1);
     bot.start();
     bot.stop();
     assertEquals(BotState.STOPPING, bot.getState());
+    bot.startBlocker.countDown();
     bot.stopBlocker.countDown();
   }
 

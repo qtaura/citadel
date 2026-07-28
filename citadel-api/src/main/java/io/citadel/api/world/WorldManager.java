@@ -6,6 +6,8 @@ public interface WorldManager {
 
   BlockState getBlock(BlockPos position);
 
+  BlockState getBlock(int x, int y, int z);
+
   Chunk getChunk(ChunkPos position);
 
   boolean isChunkLoaded(ChunkPos position);

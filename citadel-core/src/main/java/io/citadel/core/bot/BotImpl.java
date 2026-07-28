@@ -20,8 +20,10 @@ import io.citadel.api.service.AccountManager;
 import io.citadel.api.service.Configuration;
 import io.citadel.api.service.ConfigurationSection;
 import io.citadel.api.service.Logger;
+import io.citadel.api.world.WorldManager;
 import io.citadel.core.auth.AuthenticationService;
 import io.citadel.core.net.Connection;
+import io.citadel.core.world.WorldManagerImpl;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.UUID;
@@ -33,7 +35,8 @@ import java.util.concurrent.atomic.AtomicReference;
 @SuppressWarnings({
   "PMD.ExceptionAsFlowControl",
   "PMD.ExcessiveParameterList",
-  "PMD.CyclomaticComplexity"
+  "PMD.CyclomaticComplexity",
+  "PMD.ExcessiveImports"
 })
 public final class BotImpl implements Bot {
 
@@ -67,6 +70,7 @@ public final class BotImpl implements Bot {
   private volatile Account account;
   private volatile Connection connection;
   private volatile Session session;
+  private final WorldManagerImpl worldManager;
   private CompletableFuture<Void> startFuture;
   private CompletableFuture<Void> stopFuture;
 
@@ -95,6 +99,7 @@ public final class BotImpl implements Bot {
     this.serverHost = config.getString("networking.server.host", "localhost");
     this.serverPort = config.getInt("networking.server.port", 25565);
     this.reconnectPolicy = loadReconnectPolicy(config);
+    this.worldManager = new WorldManagerImpl(botId, accountId, eventBus, logger);
     this.state = new AtomicReference<>(BotState.CREATED);
     this.reconnectAttempt = new AtomicInteger(0);
     this.lock = new Object();
@@ -123,6 +128,7 @@ public final class BotImpl implements Bot {
     this.serverHost = Objects.requireNonNull(serverHost, "serverHost");
     this.serverPort = serverPort;
     this.reconnectPolicy = ReconnectPolicy.defaults();
+    this.worldManager = new WorldManagerImpl(botId, accountId, eventBus, logger);
     this.state = new AtomicReference<>(BotState.CREATED);
     this.reconnectAttempt = new AtomicInteger(0);
     this.lock = new Object();
@@ -146,6 +152,11 @@ public final class BotImpl implements Bot {
   @Override
   public Session getSession() {
     return session;
+  }
+
+  @Override
+  public WorldManager getWorld() {
+    return worldManager;
   }
 
   @Override
@@ -237,6 +248,8 @@ public final class BotImpl implements Bot {
       if (!transitionTo(BotState.RUNNING)) {
         return;
       }
+      worldManager.clear();
+      connection.addPacketHandler(worldManager::handlePacket);
       logger.info(
           "Bot {} started (account={}, server={}:{})", botId, accountId, serverHost, serverPort);
       eventBus.publishAsync(new BotStartedEvent(botId, accountId, serverHost, serverPort));
@@ -257,6 +270,7 @@ public final class BotImpl implements Bot {
         stopBlocker.await();
       }
       cleanup();
+      worldManager.clear();
       state.set(BotState.STOPPED);
       logger.info("Bot {} stopped", botId);
       eventBus.publishAsync(new BotStoppedEvent(botId, accountId));
@@ -371,6 +385,8 @@ public final class BotImpl implements Bot {
         return;
       }
       newConn = null;
+      worldManager.clear();
+      connection.addPacketHandler(worldManager::handlePacket);
       logger.info("Bot {} reconnected successfully (attempt {})", botId, attempt);
       eventBus.publishAsync(new BotReconnectSucceededEvent(botId, accountId, attempt));
       reconnectAttempt.set(0);
@@ -461,10 +477,6 @@ public final class BotImpl implements Bot {
     while (true) {
       BotState current = state.get();
       if (current == BotState.STOPPING || current == BotState.STOPPED) {
-        cleanup();
-        state.set(BotState.STOPPED);
-        logger.info("Bot {} startup aborted", botId);
-        eventBus.publishAsync(new BotStoppedEvent(botId, accountId));
         startFuture.completeExceptionally(new IllegalStateException("Startup aborted by stop"));
         return false;
       }
@@ -519,6 +531,7 @@ public final class BotImpl implements Bot {
     this.serverHost = Objects.requireNonNull(serverHost, "serverHost");
     this.serverPort = serverPort;
     this.reconnectPolicy = Objects.requireNonNull(reconnectPolicy, "reconnectPolicy");
+    this.worldManager = new WorldManagerImpl(botId, accountId, eventBus, logger);
     this.state = new AtomicReference<>(BotState.CREATED);
     this.reconnectAttempt = new AtomicInteger(0);
     this.lock = new Object();

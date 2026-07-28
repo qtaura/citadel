@@ -21,8 +21,10 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
+@SuppressWarnings("PMD.GodClass")
 public final class Connection implements io.citadel.api.network.Connection, Closeable {
 
   private final AtomicReference<ConnectionState> state;
@@ -34,6 +36,7 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
   private final EventBus eventBus;
   private final Logger logger;
   private final ProxyDefinition proxy;
+  private final java.util.List<PacketHandler> packetHandlers;
 
   private Socket socket;
   private DataInputStream in;
@@ -66,6 +69,7 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
     this.eventBus = eventBus;
     this.logger = Objects.requireNonNull(logger, "logger");
     this.proxy = proxy;
+    this.packetHandlers = new CopyOnWriteArrayList<>();
   }
 
   @Override
@@ -199,7 +203,14 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
     eventBus.publishAsync(
         new PacketReceivedEvent(
             packetId, protocolState.get(), host, port, frame.getPayload().length));
+    for (PacketHandler handler : packetHandlers) {
+      handler.handle(packet);
+    }
     return packet;
+  }
+
+  public void addPacketHandler(PacketHandler handler) {
+    packetHandlers.add(handler);
   }
 
   public void setProtocolState(ProtocolState newState) {

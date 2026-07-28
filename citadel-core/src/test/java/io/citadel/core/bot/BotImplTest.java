@@ -290,10 +290,12 @@ class BotImplTest {
   void multipleStopCallsWhileStoppingReturnSameFuture() {
     BotImpl bot = createTestBot("a1", trueAccount("a1"));
     forceState(bot, BotState.RUNNING);
+    bot.stopBlocker = new CountDownLatch(1);
     CompletableFuture<Void> f1 = bot.stop();
     for (int i = 0; i < 5; i++) {
       assertSame(f1, bot.stop());
     }
+    bot.stopBlocker.countDown();
   }
 
   @Test

@@ -413,7 +413,17 @@ class BotImplTest {
     acctMgr.add(acct);
     TestProxyManager pm = new TestProxyManager();
     BotImpl bot =
-        new BotImpl("a1", acctMgr, pm, null, new RecordingEventBus(), silentLogger(), 1000, 1000, "localhost", 25565);
+        new BotImpl(
+            "a1",
+            acctMgr,
+            pm,
+            null,
+            new RecordingEventBus(),
+            silentLogger(),
+            1000,
+            1000,
+            "localhost",
+            25565);
     try {
       bot.start().get(5, TimeUnit.SECONDS);
       fail("Expected startup to fail");

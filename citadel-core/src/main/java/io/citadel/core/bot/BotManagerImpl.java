@@ -50,7 +50,13 @@ public final class BotManagerImpl implements BotManager {
     }
     BotImpl bot =
         new BotImpl(
-            accountId, accountManager, proxyManager, authenticationService, eventBus, logger, config);
+            accountId,
+            accountManager,
+            proxyManager,
+            authenticationService,
+            eventBus,
+            logger,
+            config);
     bots.put(bot.getBotId(), bot);
     eventBus.publishAsync(new BotCreatedEvent(bot.getBotId(), accountId));
     return bot;

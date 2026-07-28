@@ -3,6 +3,7 @@ package io.citadel.core.bootstrap;
 import io.citadel.api.bot.Bot;
 import io.citadel.api.bot.BotManager;
 import io.citadel.api.event.EventBus;
+import io.citadel.api.proxy.ProxyManager;
 import io.citadel.api.service.AccountManager;
 import io.citadel.api.service.Configuration;
 import io.citadel.api.service.Logger;
@@ -13,6 +14,7 @@ import io.citadel.core.config.CitadelConfiguration;
 import io.citadel.core.event.EventBusImpl;
 import io.citadel.core.logging.LoggingService;
 import io.citadel.core.plugin.PluginManager;
+import io.citadel.core.proxy.ProxyManagerImpl;
 import io.citadel.core.service.AccountManagerImpl;
 import io.citadel.core.service.NoOpScheduler;
 import java.nio.file.Path;
@@ -61,11 +63,16 @@ public final class Bootstrap {
     serviceRegistry.register(AccountManager.class, accountManager);
     rootLogger.info("Loaded {} account(s) from configuration", accountManager.size());
 
+    ProxyManagerImpl proxyManager =
+        new ProxyManagerImpl(configuration, eventBus, rootLogger);
+    serviceRegistry.register(ProxyManager.class, proxyManager);
+    rootLogger.info("Loaded {} proxy(ies) from configuration", proxyManager.size());
+
     AuthenticationService authenticationService =
         new AuthenticationService(eventBus, rootLogger, configuration);
     BotManagerImpl botManager =
         new BotManagerImpl(
-            accountManager, authenticationService, eventBus, rootLogger, configuration);
+            accountManager, proxyManager, authenticationService, eventBus, rootLogger, configuration);
     serviceRegistry.register(BotManager.class, botManager);
     rootLogger.info("Bot manager initialized");
 

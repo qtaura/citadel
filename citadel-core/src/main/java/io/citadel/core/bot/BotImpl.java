@@ -10,6 +10,8 @@ import io.citadel.api.event.bot.BotStartedEvent;
 import io.citadel.api.event.bot.BotStartingEvent;
 import io.citadel.api.event.bot.BotStoppedEvent;
 import io.citadel.api.event.bot.BotStoppingEvent;
+import io.citadel.api.proxy.ProxyDefinition;
+import io.citadel.api.proxy.ProxyManager;
 import io.citadel.api.service.AccountManager;
 import io.citadel.api.service.Configuration;
 import io.citadel.api.service.Logger;
@@ -30,6 +32,7 @@ public final class BotImpl implements Bot {
   private final UUID botId;
   private final String accountId;
   private final AccountManager accountManager;
+  private final ProxyManager proxyManager;
   private final AuthenticationService authenticationService;
   private final EventBus eventBus;
   private final Logger logger;
@@ -56,6 +59,7 @@ public final class BotImpl implements Bot {
   public BotImpl(
       String accountId,
       AccountManager accountManager,
+      ProxyManager proxyManager,
       AuthenticationService authenticationService,
       EventBus eventBus,
       Logger logger,
@@ -63,6 +67,7 @@ public final class BotImpl implements Bot {
     this.botId = UUID.randomUUID();
     this.accountId = Objects.requireNonNull(accountId, "accountId");
     this.accountManager = Objects.requireNonNull(accountManager, "accountManager");
+    this.proxyManager = proxyManager;
     this.authenticationService = authenticationService;
     this.eventBus = Objects.requireNonNull(eventBus, "eventBus");
     this.logger = Objects.requireNonNull(logger, "logger");
@@ -78,6 +83,7 @@ public final class BotImpl implements Bot {
   BotImpl(
       String accountId,
       AccountManager accountManager,
+      ProxyManager proxyManager,
       AuthenticationService authenticationService,
       EventBus eventBus,
       Logger logger,
@@ -88,6 +94,7 @@ public final class BotImpl implements Bot {
     this.botId = UUID.randomUUID();
     this.accountId = Objects.requireNonNull(accountId, "accountId");
     this.accountManager = Objects.requireNonNull(accountManager, "accountManager");
+    this.proxyManager = proxyManager;
     this.authenticationService = authenticationService;
     this.eventBus = Objects.requireNonNull(eventBus, "eventBus");
     this.logger = Objects.requireNonNull(logger, "logger");
@@ -196,8 +203,10 @@ public final class BotImpl implements Bot {
       if (!transitionTo(BotState.CONNECTING)) {
         return;
       }
+      ProxyDefinition proxyDef = resolveProxy(account);
       connection =
-          new Connection(serverHost, serverPort, connectTimeout, readTimeout, eventBus, logger);
+          new Connection(
+              serverHost, serverPort, connectTimeout, readTimeout, eventBus, logger, proxyDef);
       connection.connect();
       if (!transitionTo(BotState.AUTHENTICATING)) {
         return;
@@ -270,5 +279,22 @@ public final class BotImpl implements Bot {
     synchronized (lock) {
       state.set(target);
     }
+  }
+
+  private ProxyDefinition resolveProxy(Account acct) {
+    if (acct.proxy().isEmpty()) {
+      return null;
+    }
+    String proxyId = acct.proxy().get();
+    if (proxyManager == null) {
+      throw new IllegalStateException(
+          "Account " + acct.id() + " has proxy " + proxyId + " but no ProxyManager is available");
+    }
+    ProxyDefinition def = proxyManager.get(proxyId);
+    if (def == null) {
+      throw new IllegalStateException(
+          "Account " + acct.id() + " has proxy " + proxyId + " but proxy not found");
+    }
+    return def;
   }
 }

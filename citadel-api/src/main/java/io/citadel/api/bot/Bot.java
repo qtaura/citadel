@@ -3,6 +3,7 @@ package io.citadel.api.bot;
 import io.citadel.api.account.Account;
 import io.citadel.api.auth.Session;
 import io.citadel.api.network.Connection;
+import io.citadel.api.world.WorldManager;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -24,6 +25,8 @@ public interface Bot {
   Connection getConnection();
 
   Session getSession();
+
+  WorldManager getWorld();
 
   BotState getState();
 

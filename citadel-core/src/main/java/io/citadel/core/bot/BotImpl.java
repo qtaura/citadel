@@ -176,6 +176,11 @@ public final class BotImpl implements Bot {
 
   @Override
   public CompletableFuture<Void> restart() {
+    synchronized (lock) {
+      if (state.get() == BotState.FAILED) {
+        state.set(BotState.STOPPED);
+      }
+    }
     return stop().thenCompose(v -> start());
   }
 

@@ -1,5 +1,7 @@
 package io.citadel.core.bootstrap;
 
+import io.citadel.api.bot.Bot;
+import io.citadel.api.bot.BotManager;
 import io.citadel.api.event.EventBus;
 import io.citadel.api.service.AccountManager;
 import io.citadel.api.service.Configuration;
@@ -14,6 +16,7 @@ import io.citadel.core.plugin.PluginManager;
 import io.citadel.core.service.AccountManagerImpl;
 import io.citadel.core.service.NoOpScheduler;
 import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Owns the Citadel startup sequence.
@@ -63,7 +66,7 @@ public final class Bootstrap {
     BotManagerImpl botManager =
         new BotManagerImpl(
             accountManager, authenticationService, eventBus, rootLogger, configuration);
-    serviceRegistry.register(io.citadel.api.bot.BotManager.class, botManager);
+    serviceRegistry.register(BotManager.class, botManager);
     rootLogger.info("Bot manager initialized");
 
     registerNoOpServices(serviceRegistry);
@@ -86,6 +89,7 @@ public final class Bootstrap {
         .addShutdownHook(
             new Thread(
                 () -> {
+                  shutdownBots(botManager, rootLogger);
                   pluginManager.disablePlugins();
                   eventBus.shutdown();
                   loggingService.shutdown();
@@ -126,5 +130,19 @@ public final class Bootstrap {
 
   private static void registerNoOpServices(ServiceRegistry registry) {
     registry.register(Scheduler.class, new NoOpScheduler());
+  }
+
+  private static void shutdownBots(BotManager botManager, Logger logger) {
+    if (botManager == null) {
+      return;
+    }
+    for (Bot bot : botManager.getAll()) {
+      try {
+        bot.stop().get(10, TimeUnit.SECONDS);
+      } catch (Exception e) {
+        logger.warn(
+            "Bot {} did not stop cleanly during shutdown: {}", bot.getBotId(), e.getMessage());
+      }
+    }
   }
 }

@@ -13,6 +13,9 @@ import io.citadel.api.event.bot.BotFailedEvent;
 import io.citadel.api.event.bot.BotStartingEvent;
 import io.citadel.api.event.bot.BotStoppedEvent;
 import io.citadel.api.event.bot.BotStoppingEvent;
+import io.citadel.api.proxy.ProxyDefinition;
+import io.citadel.api.proxy.ProxyManager;
+import io.citadel.api.proxy.ProxyType;
 import io.citadel.api.service.AccountManager;
 import io.citadel.api.service.Logger;
 import java.util.List;
@@ -260,7 +263,7 @@ class BotImplTest {
     acctMgr.add(new Account("a1", "TestUser", AccountType.OFFLINE));
     RecordingEventBus bus = new RecordingEventBus();
     BotImpl bot =
-        new BotImpl("a1", acctMgr, null, bus, silentLogger(), 1000, 1000, TEST_NET_HOST, 1);
+        new BotImpl("a1", acctMgr, null, null, bus, silentLogger(), 1000, 1000, TEST_NET_HOST, 1);
     CompletableFuture<Void> future = bot.start();
     assertThrows(ExecutionException.class, () -> future.get(10, TimeUnit.SECONDS));
     assertEquals(BotState.FAILED, bot.getState());
@@ -272,7 +275,7 @@ class BotImplTest {
     acctMgr.add(new Account("a1", "TestUser", AccountType.OFFLINE));
     RecordingEventBus bus = new RecordingEventBus();
     BotImpl bot =
-        new BotImpl("a1", acctMgr, null, bus, silentLogger(), 1000, 1000, TEST_NET_HOST, 1);
+        new BotImpl("a1", acctMgr, null, null, bus, silentLogger(), 1000, 1000, TEST_NET_HOST, 1);
     try {
       bot.start().get(10, TimeUnit.SECONDS);
     } catch (Exception expected) {
@@ -373,7 +376,7 @@ class BotImplTest {
     acctMgr.add(acct);
     RecordingEventBus bus = new RecordingEventBus();
     BotImpl bot =
-        new BotImpl("a1", acctMgr, null, bus, silentLogger(), 1000, 1000, TEST_NET_HOST, 1);
+        new BotImpl("a1", acctMgr, null, null, bus, silentLogger(), 1000, 1000, TEST_NET_HOST, 1);
     bot.start();
     Thread.sleep(50);
     CompletableFuture<Void> stopFuture = bot.stop();
@@ -387,7 +390,7 @@ class BotImplTest {
     acctMgr.add(new Account("a1", "TestUser", AccountType.OFFLINE));
     RecordingEventBus bus = new RecordingEventBus();
     BotImpl bot =
-        new BotImpl("a1", acctMgr, null, bus, silentLogger(), 1000, 1000, TEST_NET_HOST, 1);
+        new BotImpl("a1", acctMgr, null, null, bus, silentLogger(), 1000, 1000, TEST_NET_HOST, 1);
     try {
       bot.start().get(10, TimeUnit.SECONDS);
     } catch (Exception expected) {
@@ -395,6 +398,51 @@ class BotImplTest {
     List<Class<? extends Event>> eventTypes = bus.eventTypes();
     assertTrue(eventTypes.contains(BotStartingEvent.class));
     assertTrue(eventTypes.contains(BotFailedEvent.class));
+  }
+
+  @Test
+  void startWithUnknownProxyIdFails() throws Exception {
+    TestAccountManager acctMgr = new TestAccountManager();
+    Account acct =
+        Account.builder()
+            .id("a1")
+            .username("TestUser")
+            .type(AccountType.OFFLINE)
+            .proxy("nonexistent")
+            .build();
+    acctMgr.add(acct);
+    TestProxyManager pm = new TestProxyManager();
+    BotImpl bot =
+        new BotImpl("a1", acctMgr, pm, null, new RecordingEventBus(), silentLogger(), 1000, 1000, "localhost", 25565);
+    try {
+      bot.start().get(5, TimeUnit.SECONDS);
+      fail("Expected startup to fail");
+    } catch (ExecutionException e) {
+      assertTrue(e.getCause() instanceof IllegalStateException);
+      assertTrue(e.getCause().getMessage().contains("proxy not found"));
+    }
+  }
+
+  @Test
+  void startWithUnknownProxyIdPublishesFailedEvent() throws Exception {
+    TestAccountManager acctMgr = new TestAccountManager();
+    Account acct =
+        Account.builder()
+            .id("a1")
+            .username("TestUser")
+            .type(AccountType.OFFLINE)
+            .proxy("nonexistent")
+            .build();
+    acctMgr.add(acct);
+    TestProxyManager pm = new TestProxyManager();
+    RecordingEventBus bus = new RecordingEventBus();
+    BotImpl bot =
+        new BotImpl("a1", acctMgr, pm, null, bus, silentLogger(), 1000, 1000, "localhost", 25565);
+    try {
+      bot.start().get(5, TimeUnit.SECONDS);
+    } catch (Exception expected) {
+    }
+    assertTrue(bus.contains(BotFailedEvent.class));
   }
 
   // ---- Test helpers ----
@@ -409,7 +457,7 @@ class BotImplTest {
       acctMgr.add(account);
     }
     return new BotImpl(
-        accountId, acctMgr, null, bus, silentLogger(), 1000, 1000, "localhost", 25565);
+        accountId, acctMgr, null, null, bus, silentLogger(), 1000, 1000, "localhost", 25565);
   }
 
   private static void forceState(BotImpl bot, BotState target) {
@@ -514,6 +562,46 @@ class BotImplTest {
     @Override
     public void publishAsync(Event event) {
       events.add(event);
+    }
+  }
+
+  private static final class TestProxyManager implements ProxyManager {
+    private final java.util.Map<String, ProxyDefinition> proxies =
+        new java.util.concurrent.ConcurrentHashMap<>();
+
+    @Override
+    public ProxyDefinition get(String id) {
+      return proxies.get(id);
+    }
+
+    @Override
+    public List<ProxyDefinition> getAll() {
+      return List.copyOf(proxies.values());
+    }
+
+    @Override
+    public List<ProxyDefinition> findByType(ProxyType type) {
+      return proxies.values().stream().filter(p -> p.type() == type).toList();
+    }
+
+    @Override
+    public boolean register(ProxyDefinition proxy) {
+      return proxies.putIfAbsent(proxy.id(), proxy) == null;
+    }
+
+    @Override
+    public boolean unregister(String id) {
+      return proxies.remove(id) != null;
+    }
+
+    @Override
+    public boolean contains(String id) {
+      return proxies.containsKey(id);
+    }
+
+    @Override
+    public int size() {
+      return proxies.size();
     }
   }
 

@@ -9,12 +9,17 @@ import io.citadel.api.event.network.ProtocolStateChangedEvent;
 import io.citadel.api.network.ConnectionState;
 import io.citadel.api.network.ProtocolState;
 import io.citadel.api.service.Logger;
+import io.citadel.api.proxy.ProxyDefinition;
+import io.citadel.api.proxy.ProxyType;
 import java.io.Closeable;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -28,6 +33,7 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
   private int readTimeout;
   private final EventBus eventBus;
   private final Logger logger;
+  private final ProxyDefinition proxy;
 
   private Socket socket;
   private DataInputStream in;
@@ -40,6 +46,17 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
       int readTimeout,
       EventBus eventBus,
       Logger logger) {
+    this(host, port, connectTimeout, readTimeout, eventBus, logger, null);
+  }
+
+  public Connection(
+      String host,
+      int port,
+      int connectTimeout,
+      int readTimeout,
+      EventBus eventBus,
+      Logger logger,
+      ProxyDefinition proxy) {
     this.state = new AtomicReference<>(ConnectionState.CREATED);
     this.protocolState = new AtomicReference<>(ProtocolState.HANDSHAKE);
     this.host = host;
@@ -48,6 +65,7 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
     this.readTimeout = readTimeout;
     this.eventBus = eventBus;
     this.logger = Objects.requireNonNull(logger, "logger");
+    this.proxy = proxy;
   }
 
   @Override
@@ -56,28 +74,98 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
       throw new IllegalStateException("Cannot connect from state: " + state.get());
     }
     ConnectionState prev = ConnectionState.CREATED;
-    logger.info("Connecting to {}:{} ...", host, port);
+    String proxySuffix = proxy != null ? " via " + proxy.type() + ":" + proxy.id() : "";
+    logger.info("Connecting to {}:{}{} ...", host, port, proxySuffix);
     Socket s = null;
     try {
-      s = new Socket();
-      s.connect(new InetSocketAddress(host, port), connectTimeout);
-      s.setSoTimeout(readTimeout);
+      s = openSocket();
       this.socket = s;
       this.in = new DataInputStream(s.getInputStream());
       this.out = new DataOutputStream(s.getOutputStream());
       state.set(ConnectionState.CONNECTED);
-      logger.info("Connected to {}:{}", host, port);
+      logger.info("Connected to {}:{}{}", host, port, proxySuffix);
       eventBus.publishAsync(new ConnectionOpenedEvent(host, port, prev));
     } catch (IOException e) {
-      if (s != null) {
-        try {
-          s.close();
-        } catch (IOException ignored) {
-        }
-      }
+      closeQuietly(s);
       state.set(ConnectionState.CLOSED);
       logger.error("Failed to connect to {}:{}: {}", host, port, e.getMessage());
       throw e;
+    }
+  }
+
+  private Socket openSocket() throws IOException {
+    if (proxy != null) {
+      if (proxy.type() == ProxyType.HTTP) {
+        return connectViaHttpProxy();
+      }
+      if (proxy.type() == ProxyType.SOCKS5) {
+        return connectViaSocks5();
+      }
+    }
+    Socket s = new Socket();
+    s.connect(new InetSocketAddress(host, port), connectTimeout);
+    s.setSoTimeout(readTimeout);
+    return s;
+  }
+
+  private Socket connectViaSocks5() throws IOException {
+    java.net.Proxy jProxy =
+        new java.net.Proxy(
+            java.net.Proxy.Type.SOCKS,
+            new InetSocketAddress(proxy.host(), proxy.port()));
+    Socket s = new Socket(jProxy);
+    s.connect(new InetSocketAddress(host, port), connectTimeout);
+    s.setSoTimeout(readTimeout);
+    return s;
+  }
+
+  private Socket connectViaHttpProxy() throws IOException {
+    Socket s = new Socket();
+    s.connect(new InetSocketAddress(proxy.host(), proxy.port()), connectTimeout);
+    s.setSoTimeout(readTimeout);
+    OutputStream rawOut = s.getOutputStream();
+    String connectRequest =
+        "CONNECT " + host + ":" + port + " HTTP/1.1\r\nHost: " + host + ":" + port + "\r\n\r\n";
+    rawOut.write(connectRequest.getBytes(StandardCharsets.UTF_8));
+    rawOut.flush();
+    InputStream rawIn = s.getInputStream();
+    String statusLine = readHttpLine(rawIn);
+    if (statusLine == null || statusLine.isEmpty() || !statusLine.contains("200")) {
+      s.close();
+      throw new IOException(
+          "HTTP CONNECT failed: "
+              + (statusLine != null && !statusLine.isEmpty() ? statusLine : "no response"));
+    }
+    discardHttpHeaders(rawIn);
+    return s;
+  }
+
+  private static void discardHttpHeaders(InputStream rawIn) throws IOException {
+    for (;;) {
+      String header = readHttpLine(rawIn);
+      if (header == null || header.isEmpty()) {
+        return;
+      }
+    }
+  }
+
+  private static String readHttpLine(InputStream in) throws IOException {
+    StringBuilder sb = new StringBuilder();
+    for (;;) {
+      int b = in.read();
+      if (b == -1) {
+        if (sb.length() == 0) {
+          return null;
+        }
+        return sb.toString();
+      }
+      if (b == '\r') {
+        continue;
+      }
+      if (b == '\n') {
+        return sb.toString();
+      }
+      sb.append((char) b);
     }
   }
 
@@ -199,5 +287,14 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
 
   Socket getSocket() {
     return socket;
+  }
+
+  private static void closeQuietly(Socket s) {
+    if (s != null) {
+      try {
+        s.close();
+      } catch (IOException ignored) {
+      }
+    }
   }
 }

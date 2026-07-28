@@ -59,11 +59,21 @@ final class DefaultConfiguration {
           login_timeout: 10000
 
         # --- Proxies ---
-        # Proxy configuration for distributing connections.
-        # Each proxy is identified by name and supports SOCKS5 and HTTP.
-        proxies:
-          # Default proxy pool (empty = direct connections)
-          pool: []
+        # Proxy server definitions for routing connections.
+        # Each proxy is identified by a unique name and supports SOCKS5 and HTTP types.
+        # Accounts can reference a proxy by name through their 'proxy' field.
+        # Omit or leave empty to connect directly (no proxy).
+        # Example:
+        #   proxies:
+        #     my-socks-proxy:
+        #       type: SOCKS5
+        #       host: "1.2.3.4"
+        #       port: 1080
+        #     my-http-proxy:
+        #       type: HTTP
+        #       host: "proxy.example.com"
+        #       port: 8080
+        proxies: {}
 
         # --- Accounts ---
         # Minecraft account definitions.

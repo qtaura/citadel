@@ -4,6 +4,7 @@ import io.citadel.api.bot.Bot;
 import io.citadel.api.bot.BotManager;
 import io.citadel.api.event.EventBus;
 import io.citadel.api.event.bot.BotCreatedEvent;
+import io.citadel.api.proxy.ProxyManager;
 import io.citadel.api.service.AccountManager;
 import io.citadel.api.service.Configuration;
 import io.citadel.api.service.Logger;
@@ -19,6 +20,7 @@ public final class BotManagerImpl implements BotManager {
 
   private final Map<UUID, Bot> bots;
   private final AccountManager accountManager;
+  private final ProxyManager proxyManager;
   private final AuthenticationService authenticationService;
   private final EventBus eventBus;
   private final Logger logger;
@@ -26,12 +28,14 @@ public final class BotManagerImpl implements BotManager {
 
   public BotManagerImpl(
       AccountManager accountManager,
+      ProxyManager proxyManager,
       AuthenticationService authenticationService,
       EventBus eventBus,
       Logger logger,
       Configuration config) {
     this.bots = new ConcurrentHashMap<>();
     this.accountManager = Objects.requireNonNull(accountManager, "accountManager");
+    this.proxyManager = proxyManager;
     this.authenticationService = authenticationService;
     this.eventBus = Objects.requireNonNull(eventBus, "eventBus");
     this.logger = Objects.requireNonNull(logger, "logger");
@@ -45,7 +49,8 @@ public final class BotManagerImpl implements BotManager {
       throw new IllegalArgumentException("Account not found: " + accountId);
     }
     BotImpl bot =
-        new BotImpl(accountId, accountManager, authenticationService, eventBus, logger, config);
+        new BotImpl(
+            accountId, accountManager, proxyManager, authenticationService, eventBus, logger, config);
     bots.put(bot.getBotId(), bot);
     eventBus.publishAsync(new BotCreatedEvent(bot.getBotId(), accountId));
     return bot;

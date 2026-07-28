@@ -5,6 +5,7 @@ import io.citadel.api.event.world.BlockUpdatedEvent;
 import io.citadel.api.event.world.ChunkLoadedEvent;
 import io.citadel.api.event.world.ChunkUnloadedEvent;
 import io.citadel.api.event.world.WorldClearedEvent;
+import io.citadel.api.event.world.WorldLoadedEvent;
 import io.citadel.api.service.Logger;
 import io.citadel.api.world.BlockPos;
 import io.citadel.api.world.BlockState;
@@ -38,6 +39,7 @@ public final class WorldManagerImpl implements WorldManager {
     this.botId = botId;
     this.accountId = accountId;
     this.clearListeners = new CopyOnWriteArrayList<>();
+    eventBus.subscribe(WorldLoadedEvent.class, e -> clear());
   }
 
   @Override

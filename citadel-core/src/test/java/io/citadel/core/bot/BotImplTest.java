@@ -26,7 +26,8 @@ import org.junit.jupiter.api.Test;
   "PMD.CouplingBetweenObjects",
   "PMD.ExcessiveImports",
   "PMD.AvoidInstantiatingObjectsInLoops",
-  "PMD.AvoidUsingHardCodedIP"
+  "PMD.AvoidUsingHardCodedIP",
+  "PMD.GodClass"
 })
 class BotImplTest {
 
@@ -174,6 +175,64 @@ class BotImplTest {
     forceState(bot, BotState.STOPPED);
     CompletableFuture<Void> future = bot.restart();
     assertNotNull(future);
+  }
+
+  @Test
+  void restartFromFailedTransitionsToStarting() throws Exception {
+    BotImpl bot = createTestBot("a1", trueAccount("a1"));
+    forceState(bot, BotState.FAILED);
+    CountDownLatch blocker = new CountDownLatch(1);
+    bot.startBlocker = blocker;
+    CompletableFuture<Void> future = bot.restart();
+    assertNotNull(future);
+    assertEquals(BotState.STARTING, bot.getState());
+    blocker.countDown();
+    try {
+      future.get(5, TimeUnit.SECONDS);
+    } catch (Exception expected) {
+    }
+  }
+
+  @Test
+  void restartFromFailedPublishesStartingEvent() {
+    RecordingEventBus bus = new RecordingEventBus();
+    BotImpl bot = createTestBot("a1", trueAccount("a1"), bus);
+    forceState(bot, BotState.FAILED);
+    bot.startBlocker = new CountDownLatch(1);
+    bot.restart();
+    assertTrue(bus.contains(BotStartingEvent.class));
+    bot.startBlocker.countDown();
+  }
+
+  @Test
+  void restartFromStoppedTransitionsToStarting() throws Exception {
+    BotImpl bot = createTestBot("a1", trueAccount("a1"));
+    forceState(bot, BotState.STOPPED);
+    CountDownLatch blocker = new CountDownLatch(1);
+    bot.startBlocker = blocker;
+    CompletableFuture<Void> future = bot.restart();
+    assertNotNull(future);
+    assertEquals(BotState.STARTING, bot.getState());
+    blocker.countDown();
+    try {
+      future.get(5, TimeUnit.SECONDS);
+    } catch (Exception expected) {
+    }
+  }
+
+  @Test
+  void restartFromRunningStopsAndStarts() throws Exception {
+    BotImpl bot = createTestBot("a1", trueAccount("a1"));
+    forceState(bot, BotState.RUNNING);
+    bot.stopBlocker = new CountDownLatch(1);
+    CompletableFuture<Void> future = bot.restart();
+    assertNotNull(future);
+    assertEquals(BotState.STOPPING, bot.getState());
+    bot.stopBlocker.countDown();
+    try {
+      future.get(5, TimeUnit.SECONDS);
+    } catch (Exception expected) {
+    }
   }
 
   @Test

@@ -10,12 +10,16 @@ import io.citadel.api.event.EventBus;
 import io.citadel.api.event.EventHandler;
 import io.citadel.api.event.Subscription;
 import io.citadel.api.event.bot.BotFailedEvent;
+import io.citadel.api.event.bot.BotReconnectFailedEvent;
+import io.citadel.api.event.bot.BotReconnectStartedEvent;
+import io.citadel.api.event.bot.BotReconnectSucceededEvent;
 import io.citadel.api.event.bot.BotStartingEvent;
 import io.citadel.api.event.bot.BotStoppedEvent;
 import io.citadel.api.event.bot.BotStoppingEvent;
 import io.citadel.api.proxy.ProxyDefinition;
 import io.citadel.api.proxy.ProxyManager;
 import io.citadel.api.proxy.ProxyType;
+import io.citadel.api.reconnect.ReconnectPolicy;
 import io.citadel.api.service.AccountManager;
 import io.citadel.api.service.Logger;
 import java.util.List;
@@ -455,6 +459,96 @@ class BotImplTest {
     assertTrue(bus.contains(BotFailedEvent.class));
   }
 
+  // ===== Reconnect Tests =====
+
+  @Test
+  void initiateReconnectFromRunningTransitionsToReconnecting() {
+    RecordingEventBus bus = new RecordingEventBus();
+    BotImpl bot = createTestBot("a1", trueAccount("a1"), bus);
+    forceState(bot, BotState.RUNNING);
+    bot.initiateReconnect();
+    assertEquals(BotState.RECONNECTING, bot.getState());
+    assertTrue(bus.contains(BotReconnectStartedEvent.class));
+  }
+
+  @Test
+  void initiateReconnectNotTriggeredWhenNotRunning() {
+    for (BotState s :
+        List.of(
+            BotState.CREATED,
+            BotState.STARTING,
+            BotState.STOPPED,
+            BotState.FAILED,
+            BotState.RECONNECTING)) {
+      RecordingEventBus bus = new RecordingEventBus();
+      BotImpl bot = createTestBot("a1", trueAccount("a1"), bus);
+      forceState(bot, s);
+      bot.initiateReconnect();
+      assertEquals(s, bot.getState(), "State should not change from " + s);
+      assertFalse(bus.contains(BotReconnectStartedEvent.class));
+    }
+  }
+
+  @Test
+  void reconnectDisabledTransitionsToFailed() {
+    ReconnectPolicy disabled = ReconnectPolicy.disabled();
+    RecordingEventBus bus = new RecordingEventBus();
+    BotImpl bot = createTestBot("a1", trueAccount("a1"), bus, disabled);
+    forceState(bot, BotState.RUNNING);
+    bot.initiateReconnect();
+    assertEquals(BotState.FAILED, bot.getState());
+    assertTrue(bus.contains(BotReconnectFailedEvent.class));
+  }
+
+  @Test
+  void reconnectFailedAfterMaxAttempts() throws Exception {
+    ReconnectPolicy policy = new ReconnectPolicy(true, 2, 1, 10);
+    RecordingEventBus bus = new RecordingEventBus();
+    BotImpl bot = createTestBot("a1", trueAccount("a1"), bus, policy);
+    forceState(bot, BotState.RUNNING);
+    bot.initiateReconnect();
+    Thread.sleep(1000);
+    assertEquals(BotState.FAILED, bot.getState());
+    assertTrue(bus.contains(BotReconnectStartedEvent.class));
+    assertTrue(bus.contains(BotReconnectFailedEvent.class));
+  }
+
+  @Test
+  void stopDuringReconnectingTransitionsToStopped() throws Exception {
+    ReconnectPolicy policy = new ReconnectPolicy(true, 10, 10000, 60000);
+    RecordingEventBus bus = new RecordingEventBus();
+    BotImpl bot = createTestBot("a1", trueAccount("a1"), bus, policy);
+    forceState(bot, BotState.RUNNING);
+    bot.initiateReconnect();
+    assertEquals(BotState.RECONNECTING, bot.getState());
+    bot.stop().get(5, TimeUnit.SECONDS);
+    assertEquals(BotState.STOPPED, bot.getState());
+    assertTrue(bus.contains(BotStoppedEvent.class));
+  }
+
+  @Test
+  void initiateReconnectIncrementsAttemptCounter() {
+    BotImpl bot = createTestBot("a1", trueAccount("a1"));
+    forceState(bot, BotState.RUNNING);
+    assertEquals(0, bot.reconnectAttempts());
+    bot.initiateReconnect();
+    assertEquals(1, bot.reconnectAttempts());
+    forceState(bot, BotState.RUNNING);
+    bot.initiateReconnect();
+    assertEquals(2, bot.reconnectAttempts());
+  }
+
+  @Test
+  void stopDuringReconnectingDoesNotPublishReconnectSucceeded() throws Exception {
+    ReconnectPolicy policy = new ReconnectPolicy(true, 10, 10000, 60000);
+    RecordingEventBus bus = new RecordingEventBus();
+    BotImpl bot = createTestBot("a1", trueAccount("a1"), bus, policy);
+    forceState(bot, BotState.RUNNING);
+    bot.initiateReconnect();
+    bot.stop().get(5, TimeUnit.SECONDS);
+    assertFalse(bus.contains(BotReconnectSucceededEvent.class));
+  }
+
   // ---- Test helpers ----
 
   private static BotImpl createTestBot(String accountId, Account account) {
@@ -468,6 +562,26 @@ class BotImplTest {
     }
     return new BotImpl(
         accountId, acctMgr, null, null, bus, silentLogger(), 1000, 1000, "localhost", 25565);
+  }
+
+  private static BotImpl createTestBot(
+      String accountId, Account account, RecordingEventBus bus, ReconnectPolicy policy) {
+    TestAccountManager acctMgr = new TestAccountManager();
+    if (account != null) {
+      acctMgr.add(account);
+    }
+    return new BotImpl(
+        accountId,
+        acctMgr,
+        null,
+        null,
+        bus,
+        silentLogger(),
+        1000,
+        1000,
+        "localhost",
+        25565,
+        policy);
   }
 
   private static void forceState(BotImpl bot, BotState target) {

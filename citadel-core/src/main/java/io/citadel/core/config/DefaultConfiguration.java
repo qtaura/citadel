@@ -75,6 +75,20 @@ final class DefaultConfiguration {
         #       port: 8080
         proxies: {}
 
+        # --- Reconnect ---
+        # Automatic reconnection policy for transient failures.
+        # When a bot loses connection while running, it will automatically
+        # attempt to reconnect using exponential backoff.
+        reconnect:
+          # Set to false to disable automatic reconnection
+          enabled: true
+          # Maximum number of reconnect attempts before giving up
+          maxAttempts: 10
+          # Initial backoff delay in milliseconds (doubles each attempt)
+          initialDelay: 2000
+          # Maximum backoff delay in milliseconds (caps exponential growth)
+          maxDelay: 60000
+
         # --- Accounts ---
         # Minecraft account definitions.
         # Each account needs a unique name and credentials.

@@ -13,6 +13,7 @@ import io.citadel.api.event.bot.BotStartedEvent;
 import io.citadel.api.event.bot.BotStartingEvent;
 import io.citadel.api.event.bot.BotStoppedEvent;
 import io.citadel.api.event.bot.BotStoppingEvent;
+import io.citadel.api.event.world.WorldLoadedEvent;
 import io.citadel.api.proxy.ProxyDefinition;
 import io.citadel.api.proxy.ProxyManager;
 import io.citadel.api.reconnect.ReconnectPolicy;
@@ -248,7 +249,7 @@ public final class BotImpl implements Bot {
       if (!transitionTo(BotState.RUNNING)) {
         return;
       }
-      worldManager.clear();
+      eventBus.publish(new WorldLoadedEvent(botId, accountId));
       connection.addPacketHandler(worldManager::handlePacket);
       logger.info(
           "Bot {} started (account={}, server={}:{})", botId, accountId, serverHost, serverPort);
@@ -385,7 +386,7 @@ public final class BotImpl implements Bot {
         return;
       }
       newConn = null;
-      worldManager.clear();
+      eventBus.publish(new WorldLoadedEvent(botId, accountId));
       connection.addPacketHandler(worldManager::handlePacket);
       logger.info("Bot {} reconnected successfully (attempt {})", botId, attempt);
       eventBus.publishAsync(new BotReconnectSucceededEvent(botId, accountId, attempt));

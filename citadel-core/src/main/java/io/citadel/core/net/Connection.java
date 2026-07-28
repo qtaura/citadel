@@ -8,9 +8,9 @@ import io.citadel.api.event.network.PacketSentEvent;
 import io.citadel.api.event.network.ProtocolStateChangedEvent;
 import io.citadel.api.network.ConnectionState;
 import io.citadel.api.network.ProtocolState;
-import io.citadel.api.service.Logger;
 import io.citadel.api.proxy.ProxyDefinition;
 import io.citadel.api.proxy.ProxyType;
+import io.citadel.api.service.Logger;
 import java.io.Closeable;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -111,8 +111,7 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
   private Socket connectViaSocks5() throws IOException {
     java.net.Proxy jProxy =
         new java.net.Proxy(
-            java.net.Proxy.Type.SOCKS,
-            new InetSocketAddress(proxy.host(), proxy.port()));
+            java.net.Proxy.Type.SOCKS, new InetSocketAddress(proxy.host(), proxy.port()));
     Socket s = new Socket(jProxy);
     s.connect(new InetSocketAddress(host, port), connectTimeout);
     s.setSoTimeout(readTimeout);
@@ -141,7 +140,7 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
   }
 
   private static void discardHttpHeaders(InputStream rawIn) throws IOException {
-    for (;;) {
+    for (; ; ) {
       String header = readHttpLine(rawIn);
       if (header == null || header.isEmpty()) {
         return;
@@ -151,7 +150,7 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
 
   private static String readHttpLine(InputStream in) throws IOException {
     StringBuilder sb = new StringBuilder();
-    for (;;) {
+    for (; ; ) {
       int b = in.read();
       if (b == -1) {
         if (sb.length() == 0) {

@@ -161,28 +161,38 @@ class ProxyManagerImplTest {
 
   @Test
   void socksProxyRequiresHost() {
-    assertThrows(NullPointerException.class, () -> new ProxyDefinition("s", ProxyType.SOCKS5, null, 1080));
+    assertThrows(
+        NullPointerException.class, () -> new ProxyDefinition("s", ProxyType.SOCKS5, null, 1080));
   }
 
   @Test
   void socksProxyRequiresHostNotBlank() {
-    assertThrows(IllegalArgumentException.class, () -> new ProxyDefinition("s", ProxyType.SOCKS5, "  ", 1080));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> new ProxyDefinition("s", ProxyType.SOCKS5, "  ", 1080));
   }
 
   @Test
   void socksProxyRequiresValidPortRange() {
-    assertThrows(IllegalArgumentException.class, () -> new ProxyDefinition("s", ProxyType.SOCKS5, "1.2.3.4", 0));
-    assertThrows(IllegalArgumentException.class, () -> new ProxyDefinition("s", ProxyType.SOCKS5, "1.2.3.4", 65536));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> new ProxyDefinition("s", ProxyType.SOCKS5, "1.2.3.4", 0));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> new ProxyDefinition("s", ProxyType.SOCKS5, "1.2.3.4", 65536));
   }
 
   @Test
   void httpProxyRequiresHost() {
-    assertThrows(NullPointerException.class, () -> new ProxyDefinition("h", ProxyType.HTTP, null, 3128));
+    assertThrows(
+        NullPointerException.class, () -> new ProxyDefinition("h", ProxyType.HTTP, null, 3128));
   }
 
   @Test
   void httpProxyRequiresValidPortRange() {
-    assertThrows(IllegalArgumentException.class, () -> new ProxyDefinition("h", ProxyType.HTTP, "1.2.3.4", -1));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> new ProxyDefinition("h", ProxyType.HTTP, "1.2.3.4", -1));
   }
 
   @Test
@@ -221,8 +231,7 @@ class ProxyManagerImplTest {
             try {
               barrier.await();
               ProxyDefinition p =
-                  new ProxyDefinition(
-                      "p" + idx, ProxyType.SOCKS5, "10.0.0." + idx, 1080 + idx);
+                  new ProxyDefinition("p" + idx, ProxyType.SOCKS5, "10.0.0." + idx, 1080 + idx);
               manager.register(p);
               ProxyDefinition retrieved = manager.get("p" + idx);
               if (retrieved == null || !retrieved.id().equals("p" + idx)) {
@@ -292,14 +301,16 @@ class ProxyManagerImplTest {
   void loadRejectsUnknownField() {
     MapConfig config = new MapConfig();
     config.put("proxies.bad.unknown_field", "value");
-    assertThrows(ConfigurationException.class, () -> new ProxyManagerImpl(config, noOpBus(), noOpLogger()));
+    assertThrows(
+        ConfigurationException.class, () -> new ProxyManagerImpl(config, noOpBus(), noOpLogger()));
   }
 
   @Test
   void loadRejectsMissingType() {
     MapConfig config = new MapConfig();
     config.put("proxies.bad.host", "1.2.3.4");
-    assertThrows(ConfigurationException.class, () -> new ProxyManagerImpl(config, noOpBus(), noOpLogger()));
+    assertThrows(
+        ConfigurationException.class, () -> new ProxyManagerImpl(config, noOpBus(), noOpLogger()));
   }
 
   @Test
@@ -307,7 +318,8 @@ class ProxyManagerImplTest {
     MapConfig config = new MapConfig();
     config.put("proxies.bad.type", "SOCKS5");
     config.put("proxies.bad.port", 1080);
-    assertThrows(ConfigurationException.class, () -> new ProxyManagerImpl(config, noOpBus(), noOpLogger()));
+    assertThrows(
+        ConfigurationException.class, () -> new ProxyManagerImpl(config, noOpBus(), noOpLogger()));
   }
 
   @Test
@@ -316,7 +328,8 @@ class ProxyManagerImplTest {
     config.put("proxies.bad.type", "SOCKS5");
     config.put("proxies.bad.host", "1.2.3.4");
     config.put("proxies.bad.port", 0);
-    assertThrows(ConfigurationException.class, () -> new ProxyManagerImpl(config, noOpBus(), noOpLogger()));
+    assertThrows(
+        ConfigurationException.class, () -> new ProxyManagerImpl(config, noOpBus(), noOpLogger()));
   }
 
   @Test
@@ -473,7 +486,8 @@ class ProxyManagerImplTest {
 
   private static final class MapConfig implements Configuration {
     private final Map<String, Object> data = new LinkedHashMap<>();
-    private final List<ConfigurationListener> listeners = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private final List<ConfigurationListener> listeners =
+        new java.util.concurrent.CopyOnWriteArrayList<>();
 
     void put(String path, Object value) {
       data.put(path, value);
@@ -744,74 +758,117 @@ class ProxyManagerImplTest {
 
   private static final class NoOpLogger implements Logger {
     @Override
-    public boolean isTraceEnabled() { return false; }
+    public boolean isTraceEnabled() {
+      return false;
+    }
+
     @Override
-    public boolean isDebugEnabled() { return false; }
+    public boolean isDebugEnabled() {
+      return false;
+    }
+
     @Override
-    public boolean isInfoEnabled() { return true; }
+    public boolean isInfoEnabled() {
+      return true;
+    }
+
     @Override
-    public boolean isWarnEnabled() { return true; }
+    public boolean isWarnEnabled() {
+      return true;
+    }
+
     @Override
-    public boolean isErrorEnabled() { return true; }
+    public boolean isErrorEnabled() {
+      return true;
+    }
 
     @Override
     public void trace(String message) {}
+
     @Override
     public void trace(String format, Object... args) {}
+
     @Override
     public void trace(String message, Throwable throwable) {}
+
     @Override
     public void trace(String accountName, String message) {}
+
     @Override
     public void trace(String accountName, String format, Object... args) {}
+
     @Override
     public void trace(String accountName, String message, Throwable throwable) {}
+
     @Override
     public void debug(String message) {}
+
     @Override
     public void debug(String format, Object... args) {}
+
     @Override
     public void debug(String message, Throwable throwable) {}
+
     @Override
     public void debug(String accountName, String message) {}
+
     @Override
     public void debug(String accountName, String format, Object... args) {}
+
     @Override
     public void debug(String accountName, String message, Throwable throwable) {}
+
     @Override
     public void info(String message) {}
+
     @Override
     public void info(String format, Object... args) {}
+
     @Override
     public void info(String message, Throwable throwable) {}
+
     @Override
     public void info(String accountName, String message) {}
+
     @Override
     public void info(String accountName, String format, Object... args) {}
+
     @Override
     public void info(String accountName, String message, Throwable throwable) {}
+
     @Override
     public void warn(String message) {}
+
     @Override
     public void warn(String format, Object... args) {}
+
     @Override
     public void warn(String message, Throwable throwable) {}
+
     @Override
     public void warn(String accountName, String message) {}
+
     @Override
     public void warn(String accountName, String format, Object... args) {}
+
     @Override
     public void warn(String accountName, String message, Throwable throwable) {}
+
     @Override
     public void error(String message) {}
+
     @Override
     public void error(String format, Object... args) {}
+
     @Override
     public void error(String message, Throwable throwable) {}
+
     @Override
     public void error(String accountName, String message) {}
+
     @Override
     public void error(String accountName, String format, Object... args) {}
+
     @Override
     public void error(String accountName, String message, Throwable throwable) {}
   }
@@ -843,42 +900,91 @@ class ProxyManagerImplTest {
   }
 
   private static final class MapSection implements ConfigurationSection {
-    MapSection() {
+    MapSection() {}
+
+    @Override
+    public String getString(String path) {
+      return null;
     }
 
     @Override
-    public String getString(String path) { return null; }
+    public String getString(String path, String defaultValue) {
+      return defaultValue;
+    }
+
     @Override
-    public String getString(String path, String defaultValue) { return defaultValue; }
+    public boolean getBoolean(String path) {
+      return false;
+    }
+
     @Override
-    public boolean getBoolean(String path) { return false; }
+    public boolean getBoolean(String path, boolean defaultValue) {
+      return defaultValue;
+    }
+
     @Override
-    public boolean getBoolean(String path, boolean defaultValue) { return defaultValue; }
+    public int getInt(String path) {
+      return 0;
+    }
+
     @Override
-    public int getInt(String path) { return 0; }
+    public int getInt(String path, int defaultValue) {
+      return defaultValue;
+    }
+
     @Override
-    public int getInt(String path, int defaultValue) { return defaultValue; }
+    public long getLong(String path) {
+      return 0;
+    }
+
     @Override
-    public long getLong(String path) { return 0; }
+    public long getLong(String path, long defaultValue) {
+      return defaultValue;
+    }
+
     @Override
-    public long getLong(String path, long defaultValue) { return defaultValue; }
+    public double getDouble(String path) {
+      return 0;
+    }
+
     @Override
-    public double getDouble(String path) { return 0; }
+    public double getDouble(String path, double defaultValue) {
+      return defaultValue;
+    }
+
     @Override
-    public double getDouble(String path, double defaultValue) { return defaultValue; }
+    public <T extends Enum<T>> T getEnum(String path, Class<T> enumClass) {
+      return null;
+    }
+
     @Override
-    public <T extends Enum<T>> T getEnum(String path, Class<T> enumClass) { return null; }
+    public <T extends Enum<T>> T getEnum(String path, Class<T> enumClass, T defaultValue) {
+      return defaultValue;
+    }
+
     @Override
-    public <T extends Enum<T>> T getEnum(String path, Class<T> enumClass, T defaultValue) { return defaultValue; }
+    public List<String> getStringList(String path) {
+      return List.of();
+    }
+
     @Override
-    public List<String> getStringList(String path) { return List.of(); }
+    public <T> List<T> getList(String path) {
+      return List.of();
+    }
+
     @Override
-    public <T> List<T> getList(String path) { return List.of(); }
+    public ConfigurationSection getSection(String path) {
+      return this;
+    }
+
     @Override
-    public ConfigurationSection getSection(String path) { return this; }
+    public boolean contains(String path) {
+      return false;
+    }
+
     @Override
-    public boolean contains(String path) { return false; }
-    @Override
-    public Set<String> getKeys() { return Set.of(); }
+    public Set<String> getKeys() {
+      return Set.of();
+    }
   }
 }

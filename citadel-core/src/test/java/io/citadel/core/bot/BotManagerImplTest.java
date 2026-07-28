@@ -227,7 +227,8 @@ class BotManagerImplTest {
     for (String id : ids) {
       am.add(new Account(id, id, AccountType.OFFLINE));
     }
-    return new BotManagerImpl(am, null, null, new RecordingEventBus(), silentLogger(), testConfig());
+    return new BotManagerImpl(
+        am, null, null, new RecordingEventBus(), silentLogger(), testConfig());
   }
 
   private static BotManager createManagerWithBus(RecordingEventBus bus, String... ids) {

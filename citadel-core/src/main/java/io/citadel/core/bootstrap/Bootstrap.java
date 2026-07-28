@@ -63,8 +63,7 @@ public final class Bootstrap {
     serviceRegistry.register(AccountManager.class, accountManager);
     rootLogger.info("Loaded {} account(s) from configuration", accountManager.size());
 
-    ProxyManagerImpl proxyManager =
-        new ProxyManagerImpl(configuration, eventBus, rootLogger);
+    ProxyManagerImpl proxyManager = new ProxyManagerImpl(configuration, eventBus, rootLogger);
     serviceRegistry.register(ProxyManager.class, proxyManager);
     rootLogger.info("Loaded {} proxy(ies) from configuration", proxyManager.size());
 
@@ -72,7 +71,12 @@ public final class Bootstrap {
         new AuthenticationService(eventBus, rootLogger, configuration);
     BotManagerImpl botManager =
         new BotManagerImpl(
-            accountManager, proxyManager, authenticationService, eventBus, rootLogger, configuration);
+            accountManager,
+            proxyManager,
+            authenticationService,
+            eventBus,
+            rootLogger,
+            configuration);
     serviceRegistry.register(BotManager.class, botManager);
     rootLogger.info("Bot manager initialized");
 

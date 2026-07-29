@@ -24,6 +24,7 @@ public final class MicrosoftAuthenticator {
 
   private final String clientId;
   private final String deviceCodeUrl;
+  private final String authorizeUrl;
   private final String tokenUrl;
   private static final String XBL_AUTH_URL = "https://user.auth.xboxlive.com/user/authenticate";
   private static final String XSTS_AUTH_URL = "https://xsts.auth.xboxlive.com/xsts/authorize";
@@ -43,8 +44,10 @@ public final class MicrosoftAuthenticator {
   public MicrosoftAuthenticator(String clientId, String tenant) {
     this.clientId = Objects.requireNonNull(clientId, "clientId");
     Objects.requireNonNull(tenant, "tenant");
-    this.deviceCodeUrl = "https://login.microsoftonline.com/" + tenant + "/oauth2/v2.0/devicecode";
-    this.tokenUrl = "https://login.microsoftonline.com/" + tenant + "/oauth2/v2.0/token";
+    String tenantUrl = "https://login.microsoftonline.com/" + tenant + "/oauth2/v2.0";
+    this.deviceCodeUrl = tenantUrl + "/devicecode";
+    this.authorizeUrl = tenantUrl + "/authorize";
+    this.tokenUrl = tenantUrl + "/token";
     this.gson = new Gson();
     this.httpClient =
         HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS)).build();
@@ -77,6 +80,64 @@ public final class MicrosoftAuthenticator {
     int expiresIn = obj.get("expires_in").getAsInt();
     int interval = obj.get("interval").getAsInt();
     return new DeviceCodeResult(userCode, deviceCode, verificationUri, expiresIn, interval);
+  }
+
+  public OAuthToken authenticateWithBrowser() throws AuthenticationException {
+    try {
+      LocalAuthServer localServer = new LocalAuthServer();
+      localServer.start();
+      String redirectUri = localServer.getRedirectUri();
+      String loginUrl =
+          authorizeUrl
+              + "?client_id="
+              + urlEncode(clientId)
+              + "&response_type=code"
+              + "&redirect_uri="
+              + urlEncode(redirectUri)
+              + "&scope="
+              + urlEncode("XboxLive.signin XboxLive.offline_access")
+              + "&response_mode=query";
+      System.out.println("\n========================================");
+      System.out.println("Open this URL in your browser and sign in:");
+      System.out.println(loginUrl);
+      System.out.println("========================================\n");
+      String code = localServer.waitForCode(5, java.util.concurrent.TimeUnit.MINUTES);
+      localServer.stop();
+      return exchangeCodeForToken(code, redirectUri);
+    } catch (Exception e) {
+      throw new AuthenticationException("Browser authentication failed: " + e.getMessage(), e);
+    }
+  }
+
+  private OAuthToken exchangeCodeForToken(String code, String redirectUri)
+      throws AuthenticationException {
+    String body =
+        "client_id="
+            + urlEncode(clientId)
+            + "&grant_type=authorization_code"
+            + "&code="
+            + urlEncode(code)
+            + "&redirect_uri="
+            + urlEncode(redirectUri)
+            + "&scope="
+            + urlEncode("XboxLive.signin XboxLive.offline_access");
+    String json = postForm(tokenUrl, body);
+    try {
+      JsonObject obj = gson.fromJson(json, JsonObject.class);
+      if (obj.has("error")) {
+        String errorDesc =
+            obj.has("error_description")
+                ? getString(obj, "error_description")
+                : getString(obj, "error");
+        throw new AuthenticationException("Token exchange failed: " + errorDesc);
+      }
+      String accessToken = getString(obj, "access_token");
+      String refreshToken = getString(obj, "refresh_token");
+      int tokenExpiresIn = obj.get("expires_in").getAsInt();
+      return new OAuthToken(accessToken, refreshToken, Instant.now().plusSeconds(tokenExpiresIn));
+    } catch (RuntimeException e) {
+      throw new AuthenticationException("Failed to parse token response: " + e.getMessage(), e);
+    }
   }
 
   @SuppressWarnings("PMD.CyclomaticComplexity")

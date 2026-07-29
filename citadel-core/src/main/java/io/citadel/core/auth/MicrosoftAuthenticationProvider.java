@@ -41,15 +41,7 @@ public final class MicrosoftAuthenticationProvider implements AuthenticationProv
   public Session authenticate(Account account) {
     logger.info("Starting Microsoft OAuth for account {}", account.id());
     try {
-      MicrosoftAuthenticator.DeviceCodeResult deviceCode = authenticator.requestDeviceCode();
-      logger.info(
-          "Open {} and enter code {} to authenticate account {}",
-          deviceCode.verificationUri(),
-          deviceCode.userCode(),
-          account.id());
-      MicrosoftAuthenticator.OAuthToken oauthToken =
-          authenticator.pollForToken(
-              deviceCode.deviceCode(), deviceCode.expiresIn(), deviceCode.interval());
+      MicrosoftAuthenticator.OAuthToken oauthToken = authenticator.authenticateWithBrowser();
       MicrosoftAuthenticator.XblToken xblToken =
           authenticator.authenticateXbl(oauthToken.accessToken());
       MicrosoftAuthenticator.XstsToken xstsToken = authenticator.authenticateXsts(xblToken.token());
@@ -71,10 +63,6 @@ public final class MicrosoftAuthenticationProvider implements AuthenticationProv
     } catch (AuthenticationException e) {
       throw new RuntimeException(
           "Microsoft authentication failed for account " + account.id() + ": " + e.getMessage(), e);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw new RuntimeException(
-          "Microsoft authentication interrupted for account " + account.id(), e);
     }
   }
 

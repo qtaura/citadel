@@ -1,0 +1,19 @@
+networking:
+  server:
+    host: "6b6t.org"
+    port: 25565
+
+authentication:
+  offline_mode: false
+
+accounts:
+  my_main:
+    username: "bigboytann.rje7r8fa@outlook.com"
+    type: MICROSOFT
+    enabled: true
+
+logging:
+  level: "INFO"
+  file:
+    enabled: true
+    path: "logs/citadel.log"

@@ -114,7 +114,7 @@ public final class BotImpl implements Bot {
     this.serverPort = config.getInt("networking.server.port", 25565);
     this.reconnectPolicy = loadReconnectPolicy(config);
     this.worldManager = new WorldManagerImpl(botId, accountId, eventBus, logger);
-    this.microsoftAuthProvider = new MicrosoftAuthenticationProvider(logger, config);
+    this.microsoftAuthProvider = new MicrosoftAuthenticationProvider(logger);
     this.state = new AtomicReference<>(BotState.CREATED);
     this.reconnectAttempt = new AtomicInteger(0);
     this.lock = new Object();

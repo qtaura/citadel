@@ -4,32 +4,24 @@ import io.citadel.api.account.Account;
 import io.citadel.api.account.AccountType;
 import io.citadel.api.auth.AuthenticationProvider;
 import io.citadel.api.auth.Session;
-import io.citadel.api.service.Configuration;
-import io.citadel.api.service.ConfigurationSection;
 import io.citadel.api.service.Logger;
+import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Consumer;
+import net.raphimc.minecraftauth.MinecraftAuth;
+import net.raphimc.minecraftauth.java.JavaAuthManager;
+import net.raphimc.minecraftauth.msa.model.MsaDeviceCode;
+import net.raphimc.minecraftauth.msa.service.impl.DeviceCodeMsaAuthService;
 
 public final class MicrosoftAuthenticationProvider implements AuthenticationProvider {
 
-  private final MicrosoftAuthenticator authenticator;
   private final Logger logger;
+  private final net.lenni0451.commons.httpclient.HttpClient httpClient;
 
   public MicrosoftAuthenticationProvider(Logger logger) {
     this.logger = Objects.requireNonNull(logger, "logger");
-    this.authenticator = new MicrosoftAuthenticator();
-  }
-
-  public MicrosoftAuthenticationProvider(Logger logger, Configuration config) {
-    this.logger = Objects.requireNonNull(logger, "logger");
-    ConfigurationSection azure = config.getSection("authentication");
-    String clientId = azure.getString("azure_client_id", MicrosoftAuthenticator.DEFAULT_CLIENT_ID);
-    String tenant = azure.getString("azure_tenant", MicrosoftAuthenticator.DEFAULT_TENANT);
-    this.authenticator = new MicrosoftAuthenticator(clientId, tenant);
-    if (!MicrosoftAuthenticator.DEFAULT_CLIENT_ID.equals(clientId)
-        || !MicrosoftAuthenticator.DEFAULT_TENANT.equals(tenant)) {
-      logger.info("Using custom Azure AD app: client_id={}, tenant={}", clientId, tenant);
-    }
+    this.httpClient = MinecraftAuth.createHttpClient("citadel/0.1.0");
   }
 
   @Override
@@ -39,28 +31,32 @@ public final class MicrosoftAuthenticationProvider implements AuthenticationProv
 
   @Override
   public Session authenticate(Account account) {
-    logger.info("Starting Microsoft OAuth for account {}", account.id());
+    logger.info("Starting Microsoft authentication for account {}", account.id());
     try {
-      MicrosoftAuthenticator.OAuthToken oauthToken = authenticator.authenticateWithBrowser();
-      MicrosoftAuthenticator.XblToken xblToken =
-          authenticator.authenticateXbl(oauthToken.accessToken());
-      MicrosoftAuthenticator.XstsToken xstsToken = authenticator.authenticateXsts(xblToken.token());
-      MicrosoftAuthenticator.MinecraftToken mcToken =
-          authenticator.loginMinecraft(xstsToken.uhs(), xstsToken.token());
-      MicrosoftAuthenticator.MinecraftProfile profile =
-          authenticator.lookupProfile(mcToken.accessToken());
+      JavaAuthManager authManager =
+          JavaAuthManager.create(httpClient)
+              .login(
+                  DeviceCodeMsaAuthService::new,
+                  (Consumer<MsaDeviceCode>)
+                      deviceCode -> {
+                        logger.info(
+                            "Open {} in your browser and sign in with your Microsoft account.",
+                            deviceCode.getDirectVerificationUri());
+                      });
+      var mcToken = authManager.getMinecraftToken().getUpToDate();
+      var profile = authManager.getMinecraftProfile().getUpToDate();
       logger.info(
           "Microsoft authentication succeeded for account {} as {}",
           account.id(),
-          profile.username());
+          profile.getName());
       return new Session(
           account.id(),
-          profile.profileId(),
-          profile.username(),
+          profile.getId(),
+          profile.getName(),
           AccountType.MICROSOFT,
-          Optional.of(mcToken.accessToken()),
-          Optional.of(mcToken.expiresAt()));
-    } catch (AuthenticationException e) {
+          Optional.of(mcToken.getToken()),
+          Optional.of(Instant.ofEpochMilli(mcToken.getExpireTimeMs())));
+    } catch (Exception e) {
       throw new RuntimeException(
           "Microsoft authentication failed for account " + account.id() + ": " + e.getMessage(), e);
     }
@@ -68,31 +64,21 @@ public final class MicrosoftAuthenticationProvider implements AuthenticationProv
 
   @Override
   public Optional<Session> refresh(Session stale) {
-    if (stale.accessToken().isEmpty()) {
-      return Optional.empty();
-    }
-    if (stale.accountType() != AccountType.MICROSOFT) {
-      return Optional.empty();
-    }
     try {
-      MicrosoftAuthenticator.OAuthToken refreshed =
-          authenticator.refreshAccessToken(stale.accessToken().get());
-      MicrosoftAuthenticator.XblToken xblToken =
-          authenticator.authenticateXbl(refreshed.accessToken());
-      MicrosoftAuthenticator.XstsToken xstsToken = authenticator.authenticateXsts(xblToken.token());
-      MicrosoftAuthenticator.MinecraftToken mcToken =
-          authenticator.loginMinecraft(xstsToken.uhs(), xstsToken.token());
-      MicrosoftAuthenticator.MinecraftProfile profile =
-          authenticator.lookupProfile(mcToken.accessToken());
+      JavaAuthManager authManager =
+          JavaAuthManager.fromJson(httpClient, new com.google.gson.JsonObject());
+      var mcToken = authManager.getMinecraftToken().getUpToDate();
+      var profile = authManager.getMinecraftProfile().getUpToDate();
+      logger.info("Session refreshed for account {}", stale.accountId());
       return Optional.of(
           new Session(
               stale.accountId(),
-              profile.profileId(),
-              profile.username(),
+              profile.getId(),
+              profile.getName(),
               AccountType.MICROSOFT,
-              Optional.of(mcToken.accessToken()),
-              Optional.of(mcToken.expiresAt())));
-    } catch (AuthenticationException e) {
+              Optional.of(mcToken.getToken()),
+              Optional.of(Instant.ofEpochMilli(mcToken.getExpireTimeMs()))));
+    } catch (Exception e) {
       logger.warn(
           "Failed to refresh session for account {}: {}", stale.accountId(), e.getMessage());
       return Optional.empty();

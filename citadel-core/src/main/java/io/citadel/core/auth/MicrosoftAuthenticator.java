@@ -19,8 +19,8 @@ import java.util.UUID;
 
 public final class MicrosoftAuthenticator {
 
-  public static final String DEFAULT_CLIENT_ID = "00000000402b5328";
-  public static final String DEFAULT_TENANT = "consumers";
+  public static final String DEFAULT_CLIENT_ID = "1950a258-227b-4e31-a9cf-717495945fc2";
+  public static final String DEFAULT_TENANT = "organizations";
 
   private final String clientId;
   private final String deviceCodeUrl;
@@ -100,6 +100,8 @@ public final class MicrosoftAuthenticator {
       System.out.println("\n========================================");
       System.out.println("Open this URL in your browser and sign in:");
       System.out.println(loginUrl);
+      System.out.println("If the URL doesn't open automatically,");
+      System.out.println("copy and paste it into your browser.");
       System.out.println("========================================\n");
       String code = localServer.waitForCode(5, java.util.concurrent.TimeUnit.MINUTES);
       localServer.stop();

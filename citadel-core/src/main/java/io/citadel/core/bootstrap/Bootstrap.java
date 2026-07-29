@@ -47,6 +47,8 @@ public final class Bootstrap {
 
   /** Runs the full bootstrap sequence. Blocks until shutdown is requested. */
   public void start() {
+    System.out.println("[Citadel] Starting Citadel v" + VERSION + " ...");
+    System.out.println("[Citadel] Loading configuration from citadel.yml ...");
     CitadelConfiguration configuration = new CitadelConfiguration(Path.of("citadel.yml"));
     configuration.load();
     serviceRegistry.register(Configuration.class, configuration);
@@ -58,15 +60,15 @@ public final class Bootstrap {
 
     this.eventBus = new EventBusImpl(rootLogger);
     serviceRegistry.register(EventBus.class, eventBus);
-    rootLogger.info("Event bus initialized");
+    println("Event bus initialized");
 
     AccountManagerImpl accountManager = new AccountManagerImpl(configuration, eventBus, rootLogger);
     serviceRegistry.register(AccountManager.class, accountManager);
-    rootLogger.info("Loaded {} account(s) from configuration", accountManager.size());
+    println("Loaded " + accountManager.size() + " account(s) from configuration");
 
     ProxyManagerImpl proxyManager = new ProxyManagerImpl(configuration, eventBus, rootLogger);
     serviceRegistry.register(ProxyManager.class, proxyManager);
-    rootLogger.info("Loaded {} proxy(ies) from configuration", proxyManager.size());
+    println("Loaded " + proxyManager.size() + " proxy(ies) from configuration");
 
     AuthenticationService authenticationService =
         new AuthenticationService(eventBus, rootLogger, configuration);
@@ -79,19 +81,18 @@ public final class Bootstrap {
             rootLogger,
             configuration);
     serviceRegistry.register(BotManager.class, botManager);
-    rootLogger.info("Bot manager initialized");
+    println("Bot manager initialized");
 
     for (Account acct : accountManager.findEnabled()) {
       botManager.create(acct.id());
-      rootLogger.info("Created bot for account {} ({})", acct.id(), acct.username());
+      println("Created bot for account " + acct.id() + " (" + acct.username() + ")");
     }
     int botCount = botManager.size();
     if (botCount > 0) {
       botManager.startAll();
-      rootLogger.info("Started {} bot(s)", botCount);
+      println("Started " + botCount + " bot(s)");
     } else {
-      rootLogger.info(
-          "No enabled accounts configured. Create accounts in citadel.yml and restart.");
+      println("No enabled accounts configured.");
     }
 
     registerNoOpServices(serviceRegistry);
@@ -151,6 +152,11 @@ public final class Bootstrap {
   /** Exposed for testing. */
   ServiceRegistry getServiceRegistry() {
     return serviceRegistry;
+  }
+
+  private static void println(String msg) {
+    System.out.println("[Citadel] " + msg);
+    System.out.flush();
   }
 
   private static void registerNoOpServices(ServiceRegistry registry) {

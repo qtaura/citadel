@@ -14,15 +14,18 @@ import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 public final class MicrosoftAuthenticator {
 
-  private static final String CLIENT_ID = "00000000402b5328";
-  private static final String DEVICE_CODE_URL =
-      "https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode";
-  private static final String TOKEN_URL =
-      "https://login.microsoftonline.com/consumers/oauth2/v2.0/token";
+  public static final String DEFAULT_CLIENT_ID = "00000000402b5328";
+  public static final String DEFAULT_TENANT = "consumers";
+
+  private final String clientId;
+  private final String deviceCodeUrl;
+  private final String authorizeUrl;
+  private final String tokenUrl;
   private static final String XBL_AUTH_URL = "https://user.auth.xboxlive.com/user/authenticate";
   private static final String XSTS_AUTH_URL = "https://xsts.auth.xboxlive.com/xsts/authorize";
   private static final String MINECRAFT_LOGIN_URL =
@@ -35,6 +38,16 @@ public final class MicrosoftAuthenticator {
   private final HttpClient httpClient;
 
   public MicrosoftAuthenticator() {
+    this(DEFAULT_CLIENT_ID, DEFAULT_TENANT);
+  }
+
+  public MicrosoftAuthenticator(String clientId, String tenant) {
+    this.clientId = Objects.requireNonNull(clientId, "clientId");
+    Objects.requireNonNull(tenant, "tenant");
+    String tenantUrl = "https://login.microsoftonline.com/" + tenant + "/oauth2/v2.0";
+    this.deviceCodeUrl = tenantUrl + "/devicecode";
+    this.authorizeUrl = tenantUrl + "/authorize";
+    this.tokenUrl = tenantUrl + "/token";
     this.gson = new Gson();
     this.httpClient =
         HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS)).build();
@@ -43,21 +56,87 @@ public final class MicrosoftAuthenticator {
   public DeviceCodeResult requestDeviceCode() throws AuthenticationException {
     String body =
         "client_id="
-            + urlEncode(CLIENT_ID)
+            + urlEncode(clientId)
             + "&scope="
             + urlEncode("XboxLive.signin XboxLive.offline_access");
-    String json = postForm(DEVICE_CODE_URL, body);
+    String json = postForm(deviceCodeUrl, body);
+    JsonObject obj;
     try {
-      JsonObject obj = gson.fromJson(json, JsonObject.class);
-      String userCode = getString(obj, "user_code");
-      String deviceCode = getString(obj, "device_code");
-      String verificationUri = getString(obj, "verification_uri");
-      int expiresIn = obj.get("expires_in").getAsInt();
-      int interval = obj.get("interval").getAsInt();
-      return new DeviceCodeResult(userCode, deviceCode, verificationUri, expiresIn, interval);
+      obj = gson.fromJson(json, JsonObject.class);
     } catch (Exception e) {
       throw new AuthenticationException(
           "Failed to parse device code response: " + e.getMessage(), e);
+    }
+    if (obj.has("error")) {
+      String errorDesc =
+          obj.has("error_description")
+              ? getString(obj, "error_description")
+              : getString(obj, "error");
+      throw new AuthenticationException("Device code request failed: " + errorDesc);
+    }
+    String userCode = getString(obj, "user_code");
+    String deviceCode = getString(obj, "device_code");
+    String verificationUri = getString(obj, "verification_uri");
+    int expiresIn = obj.get("expires_in").getAsInt();
+    int interval = obj.get("interval").getAsInt();
+    return new DeviceCodeResult(userCode, deviceCode, verificationUri, expiresIn, interval);
+  }
+
+  public OAuthToken authenticateWithBrowser() throws AuthenticationException {
+    try {
+      LocalAuthServer localServer = new LocalAuthServer();
+      localServer.start();
+      String redirectUri = localServer.getRedirectUri();
+      String loginUrl =
+          authorizeUrl
+              + "?client_id="
+              + urlEncode(clientId)
+              + "&response_type=code"
+              + "&redirect_uri="
+              + urlEncode(redirectUri)
+              + "&scope="
+              + urlEncode("XboxLive.signin XboxLive.offline_access")
+              + "&response_mode=query";
+      System.out.println("\n========================================");
+      System.out.println("Open this URL in your browser and sign in:");
+      System.out.println(loginUrl);
+      System.out.println("========================================\n");
+      String code = localServer.waitForCode(5, java.util.concurrent.TimeUnit.MINUTES);
+      localServer.stop();
+      return exchangeCodeForToken(code, redirectUri);
+    } catch (Exception e) {
+      throw new AuthenticationException("Browser authentication failed: " + e.getMessage(), e);
+    }
+  }
+
+  private OAuthToken exchangeCodeForToken(String code, String redirectUri)
+      throws AuthenticationException {
+    String body =
+        "client_id="
+            + urlEncode(clientId)
+            + "&grant_type=authorization_code"
+            + "&code="
+            + urlEncode(code)
+            + "&redirect_uri="
+            + urlEncode(redirectUri)
+            + "&scope="
+            + urlEncode("XboxLive.signin XboxLive.offline_access");
+    String json = postForm(tokenUrl, body);
+    try {
+      JsonObject obj = gson.fromJson(json, JsonObject.class);
+      if (obj.has("error")) {
+        String errorDesc =
+            obj.has("error_description")
+                ? getString(obj, "error_description")
+                : getString(obj, "error");
+        throw new AuthenticationException("Token exchange failed: " + errorDesc);
+      }
+      String accessToken = getString(obj, "access_token");
+      String refreshToken = getString(obj, "refresh_token");
+      int tokenExpiresIn = obj.get("expires_in").getAsInt();
+      return new OAuthToken(accessToken, refreshToken, Instant.now().plusSeconds(tokenExpiresIn));
+    } catch (RuntimeException e) {
+      throw new AuthenticationException("Failed to parse token response: " + e.getMessage(), e);
     }
   }
 
@@ -69,12 +148,12 @@ public final class MicrosoftAuthenticator {
       Thread.sleep(interval * 1000L);
       String body =
           "client_id="
-              + urlEncode(CLIENT_ID)
+              + urlEncode(clientId)
               + "&grant_type="
               + urlEncode("urn:ietf:params:oauth:grant-type:device_code")
               + "&device_code="
               + urlEncode(deviceCode);
-      String json = postForm(TOKEN_URL, body);
+      String json = postForm(tokenUrl, body);
       try {
         JsonObject obj = gson.fromJson(json, JsonObject.class);
         if (obj.has("access_token")) {
@@ -104,14 +183,14 @@ public final class MicrosoftAuthenticator {
   public OAuthToken refreshAccessToken(String refreshToken) throws AuthenticationException {
     String body =
         "client_id="
-            + urlEncode(CLIENT_ID)
+            + urlEncode(clientId)
             + "&refresh_token="
             + urlEncode(refreshToken)
             + "&grant_type="
             + urlEncode("refresh_token")
             + "&scope="
             + urlEncode("XboxLive.signin XboxLive.offline_access");
-    String json = postForm(TOKEN_URL, body);
+    String json = postForm(tokenUrl, body);
     try {
       JsonObject obj = gson.fromJson(json, JsonObject.class);
       if (obj.has("error")) {

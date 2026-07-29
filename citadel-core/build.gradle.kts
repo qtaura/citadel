@@ -1,5 +1,19 @@
 description = "Citadel Internal Implementation"
 
+plugins {
+    application
+}
+
+application {
+    mainClass = "io.citadel.core.bootstrap.Citadel"
+}
+
+tasks.jar {
+    manifest {
+        attributes["Main-Class"] = "io.citadel.core.bootstrap.Citadel"
+    }
+}
+
 dependencies {
     implementation(project(":citadel-api"))
     implementation(libs.snakeyaml)

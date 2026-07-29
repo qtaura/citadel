@@ -5,6 +5,7 @@ junit-platform = "1.11.0"
 snakeyaml = "2.2"
 slf4j = "2.0.9"
 logback = "1.5.6"
+gson = "2.11.0"
 
 [libraries]
 junit-jupiter-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit" }
@@ -13,6 +14,7 @@ junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher
 snakeyaml = { module = "org.yaml:snakeyaml", version.ref = "snakeyaml" }
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
+gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 
 [plugins]
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }

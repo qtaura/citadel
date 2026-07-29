@@ -9,7 +9,9 @@ import java.io.IOException;
 
 public final class ChunkUnloadPacket implements Packet {
 
-  private final ChunkPos chunkPos;
+  private ChunkPos chunkPos;
+
+  public ChunkUnloadPacket() {}
 
   public ChunkUnloadPacket(ChunkPos chunkPos) {
     this.chunkPos = chunkPos;
@@ -21,7 +23,7 @@ public final class ChunkUnloadPacket implements Packet {
 
   @Override
   public int getPacketId(ProtocolState state) {
-    return 0x1D;
+    return 0x1E;
   }
 
   @Override
@@ -31,6 +33,8 @@ public final class ChunkUnloadPacket implements Packet {
 
   @Override
   public void read(DataInput in) throws IOException {
-    throw new UnsupportedOperationException();
+    int cx = in.readInt();
+    int cz = in.readInt();
+    this.chunkPos = new ChunkPos(cx, cz);
   }
 }

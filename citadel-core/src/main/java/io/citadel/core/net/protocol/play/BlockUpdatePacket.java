@@ -4,14 +4,17 @@ import io.citadel.api.network.ProtocolState;
 import io.citadel.api.world.BlockPos;
 import io.citadel.api.world.BlockState;
 import io.citadel.core.net.Packet;
+import io.citadel.core.net.VarInt;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
 public final class BlockUpdatePacket implements Packet {
 
-  private final BlockPos pos;
-  private final BlockState state;
+  private BlockPos pos;
+  private BlockState state;
+
+  public BlockUpdatePacket() {}
 
   public BlockUpdatePacket(BlockPos pos, BlockState state) {
     this.pos = pos;
@@ -28,7 +31,7 @@ public final class BlockUpdatePacket implements Packet {
 
   @Override
   public int getPacketId(ProtocolState state) {
-    return 0x09;
+    return 0x0C;
   }
 
   @Override
@@ -38,6 +41,9 @@ public final class BlockUpdatePacket implements Packet {
 
   @Override
   public void read(DataInput in) throws IOException {
-    throw new UnsupportedOperationException();
+    long packedPos = in.readLong();
+    int stateId = VarInt.read(in);
+    this.pos = BlockPos.unpack(packedPos);
+    this.state = new BlockState(stateId, 0);
   }
 }

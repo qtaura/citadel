@@ -14,6 +14,7 @@ import io.citadel.api.event.bot.BotStartingEvent;
 import io.citadel.api.event.bot.BotStoppedEvent;
 import io.citadel.api.event.bot.BotStoppingEvent;
 import io.citadel.api.event.world.WorldLoadedEvent;
+import io.citadel.api.network.ProtocolState;
 import io.citadel.api.proxy.ProxyDefinition;
 import io.citadel.api.proxy.ProxyManager;
 import io.citadel.api.reconnect.ReconnectPolicy;
@@ -24,6 +25,13 @@ import io.citadel.api.service.Logger;
 import io.citadel.api.world.WorldManager;
 import io.citadel.core.auth.AuthenticationService;
 import io.citadel.core.net.Connection;
+import io.citadel.core.net.Packet;
+import io.citadel.core.net.PacketFraming;
+import io.citadel.core.net.PacketRegistry;
+import io.citadel.core.net.protocol.ConfigurationProtocolCodecs;
+import io.citadel.core.net.protocol.FinishConfigurationPacket;
+import io.citadel.core.net.protocol.KeepAlivePacket;
+import io.citadel.core.net.protocol.play.PlayProtocolCodecs;
 import io.citadel.core.world.WorldManagerImpl;
 import java.io.IOException;
 import java.util.Objects;
@@ -37,7 +45,8 @@ import java.util.concurrent.atomic.AtomicReference;
   "PMD.ExceptionAsFlowControl",
   "PMD.ExcessiveParameterList",
   "PMD.CyclomaticComplexity",
-  "PMD.ExcessiveImports"
+  "PMD.ExcessiveImports",
+  "PMD.CouplingBetweenObjects"
 })
 public final class BotImpl implements Bot {
 
@@ -256,6 +265,7 @@ public final class BotImpl implements Bot {
       eventBus.publishAsync(new BotStartedEvent(botId, accountId, serverHost, serverPort));
       future.complete(null);
       startHealthCheck();
+      startReceiveLoop();
     } catch (Exception e) {
       cleanup();
       state.set(BotState.FAILED);
@@ -305,6 +315,63 @@ public final class BotImpl implements Bot {
             Thread.currentThread().interrupt();
           }
         });
+  }
+
+  private void startReceiveLoop() {
+    PacketRegistry configRegistry =
+        PacketRegistry.builder()
+            .register(0x02, ConfigurationProtocolCodecs.finishConfiguration())
+            .register(0x03, ConfigurationProtocolCodecs.keepAlive())
+            .build();
+    PacketRegistry playRegistry =
+        PacketRegistry.builder()
+            .register(0x0C, PlayProtocolCodecs.blockUpdate())
+            .register(0x1E, PlayProtocolCodecs.chunkUnload())
+            .register(0x25, PlayProtocolCodecs.chunkData())
+            .register(0x3A, PlayProtocolCodecs.multiBlockUpdate())
+            .build();
+    FinishConfigurationPacket finishConfig = new FinishConfigurationPacket();
+    Thread.startVirtualThread(() -> runReceiveLoop(configRegistry, playRegistry, finishConfig));
+  }
+
+  @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
+  private void runReceiveLoop(
+      PacketRegistry configRegistry,
+      PacketRegistry playRegistry,
+      FinishConfigurationPacket finishConfig) {
+    PacketRegistry registry = configRegistry;
+    try {
+      while (state.get() == BotState.RUNNING) {
+        registry = receiveNextPacket(registry, playRegistry, finishConfig);
+      }
+    } catch (IOException e) {
+      if (state.get() == BotState.RUNNING) {
+        logger.warn("Bot {} receive loop lost connection, initiating reconnect", botId);
+        initiateReconnect();
+      }
+    } catch (Exception e) {
+      logger.error("Bot {} receive loop error: {}", botId, e.getMessage());
+    }
+  }
+
+  @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
+  private PacketRegistry receiveNextPacket(
+      PacketRegistry registry, PacketRegistry playRegistry, FinishConfigurationPacket finishConfig)
+      throws IOException {
+    try {
+      Packet packet = connection.receivePacket(registry);
+      if (packet instanceof KeepAlivePacket ka) {
+        connection.sendPacket(new KeepAlivePacket(ka.getId()));
+      } else if (packet instanceof FinishConfigurationPacket) {
+        connection.sendPacket(finishConfig);
+        connection.setProtocolState(ProtocolState.PLAY);
+        return playRegistry;
+      }
+      return registry;
+    } catch (PacketFraming.UnknownPacketException e) {
+      logger.debug("Unknown packet in {} state: {}", connection.getProtocolState(), e.getMessage());
+      return registry;
+    }
   }
 
   void initiateReconnect() {
@@ -392,6 +459,7 @@ public final class BotImpl implements Bot {
       eventBus.publishAsync(new BotReconnectSucceededEvent(botId, accountId, attempt));
       reconnectAttempt.set(0);
       startHealthCheck();
+      startReceiveLoop();
     } catch (Exception e) {
       closeQuietly(newConn);
       handleReconnectFailure(attempt, e);

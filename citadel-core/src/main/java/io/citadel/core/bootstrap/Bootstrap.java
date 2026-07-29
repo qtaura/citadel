@@ -1,5 +1,6 @@
 package io.citadel.core.bootstrap;
 
+import io.citadel.api.account.Account;
 import io.citadel.api.bot.Bot;
 import io.citadel.api.bot.BotManager;
 import io.citadel.api.event.EventBus;
@@ -79,6 +80,19 @@ public final class Bootstrap {
             configuration);
     serviceRegistry.register(BotManager.class, botManager);
     rootLogger.info("Bot manager initialized");
+
+    for (Account acct : accountManager.findEnabled()) {
+      botManager.create(acct.id());
+      rootLogger.info("Created bot for account {} ({})", acct.id(), acct.username());
+    }
+    int botCount = botManager.size();
+    if (botCount > 0) {
+      botManager.startAll();
+      rootLogger.info("Started {} bot(s)", botCount);
+    } else {
+      rootLogger.info(
+          "No enabled accounts configured. Create accounts in citadel.yml and restart.");
+    }
 
     registerNoOpServices(serviceRegistry);
 

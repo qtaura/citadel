@@ -15,6 +15,8 @@ import io.citadel.core.net.NetworkClient;
 import io.citadel.core.net.Packet;
 import io.citadel.core.net.PacketRegistry;
 import io.citadel.core.net.protocol.DisconnectPacket;
+import io.citadel.core.net.protocol.EncryptionRequestPacket;
+import io.citadel.core.net.protocol.EncryptionResponsePacket;
 import io.citadel.core.net.protocol.HandshakePacket;
 import io.citadel.core.net.protocol.LoginProtocolCodecs;
 import io.citadel.core.net.protocol.LoginStartPacket;
@@ -22,7 +24,6 @@ import io.citadel.core.net.protocol.LoginSuccessPacket;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.util.Objects;
-import java.util.Optional;
 
 public final class AuthenticationService {
 
@@ -33,6 +34,7 @@ public final class AuthenticationService {
   private final boolean offlineMode;
   private final int loginTimeout;
   private final PacketRegistry loginRegistry;
+  private final SessionServerClient sessionServerClient;
 
   public AuthenticationService(EventBus eventBus, Logger logger, Configuration config) {
     this.eventBus = Objects.requireNonNull(eventBus, "eventBus");
@@ -43,13 +45,21 @@ public final class AuthenticationService {
     this.loginRegistry =
         PacketRegistry.builder()
             .register(0x00, LoginProtocolCodecs.disconnect())
+            .register(0x01, LoginProtocolCodecs.encryptionRequest())
             .register(0x02, LoginProtocolCodecs.loginSuccess())
             .build();
+    this.sessionServerClient = new SessionServerClient();
   }
 
   public Session login(Connection connection, Account account) throws AuthenticationException {
+    return login(connection, account, Session.offline(account));
+  }
+
+  public Session login(Connection connection, Account account, Session candidate)
+      throws AuthenticationException {
     Objects.requireNonNull(connection, "connection");
     Objects.requireNonNull(account, "account");
+    Objects.requireNonNull(candidate, "candidate");
 
     logger.info(
         "Starting login for account {} to {}:{}",
@@ -68,7 +78,6 @@ public final class AuthenticationService {
 
     try {
       connection.setReadTimeout(loginTimeout);
-      Session candidate = Session.offline(account);
       connection.sendPacket(
           new HandshakePacket(
               NetworkClient.MINECRAFT_PROTOCOL_VERSION,
@@ -77,7 +86,7 @@ public final class AuthenticationService {
               2));
       connection.setProtocolState(ProtocolState.LOGIN);
       connection.sendPacket(new LoginStartPacket(candidate.username(), candidate.profileId()));
-      return handleLoginResponse(connection, account);
+      return handleLoginSequence(connection, account, candidate);
     } catch (SocketTimeoutException e) {
       throw fail(connection, account, "Login timed out", e);
     } catch (IOException | RuntimeException e) {
@@ -93,24 +102,70 @@ public final class AuthenticationService {
     return loginTimeout;
   }
 
-  private Session handleLoginResponse(Connection connection, Account account)
+  @SuppressWarnings("PMD.CyclomaticComplexity")
+  private Session handleLoginSequence(Connection connection, Account account, Session candidate)
       throws IOException, AuthenticationException {
-    Packet response = connection.receivePacket(loginRegistry);
-    if (response instanceof DisconnectPacket disconnect) {
+    Packet firstPacket = connection.receivePacket(loginRegistry);
+
+    if (firstPacket instanceof DisconnectPacket disconnect) {
       throw fail(
           connection,
           account,
           "Server disconnected during login: " + disconnect.getReasonJson(),
           null);
     }
-    if (!(response instanceof LoginSuccessPacket success)) {
-      throw fail(
-          connection,
-          account,
-          "Unexpected login packet: " + response.getClass().getSimpleName(),
-          null);
+
+    if (firstPacket instanceof EncryptionRequestPacket encryptReq) {
+      handleEncryption(connection, account, candidate, encryptReq);
     }
 
+    if (firstPacket instanceof EncryptionRequestPacket) {
+      Packet loginPacket = connection.receivePacket(loginRegistry);
+      if (loginPacket instanceof DisconnectPacket disconnect) {
+        throw fail(connection, account, "Server disconnected: " + disconnect.getReasonJson(), null);
+      }
+      if (!(loginPacket instanceof LoginSuccessPacket success)) {
+        throw fail(
+            connection,
+            account,
+            "Unexpected login packet: " + loginPacket.getClass().getSimpleName(),
+            null);
+      }
+      return finalizeLogin(connection, account, candidate, success);
+    }
+
+    if (firstPacket instanceof LoginSuccessPacket success) {
+      return finalizeLogin(connection, account, candidate, success);
+    }
+
+    throw fail(
+        connection,
+        account,
+        "Unexpected login packet: " + firstPacket.getClass().getSimpleName(),
+        null);
+  }
+
+  private void handleEncryption(
+      Connection connection, Account account, Session candidate, EncryptionRequestPacket encryptReq)
+      throws IOException, AuthenticationException {
+    EncryptionHandler encHandler =
+        new EncryptionHandler(encryptReq.getPublicKey(), encryptReq.getVerifyToken());
+    connection.sendPacket(
+        new EncryptionResponsePacket(
+            encHandler.getEncryptedSharedSecret(), encHandler.getEncryptedVerifyToken()));
+    connection.enableEncryption(encHandler.getSharedSecret());
+    String serverId = encHandler.computeServerId();
+    if (candidate.accessToken().isPresent()) {
+      sessionServerClient.joinServer(
+          candidate.accessToken().get(), candidate.profileId(), serverId);
+    } else {
+      logger.warn(
+          "Server requires encryption but no access token available (account: {})", account.id());
+    }
+  }
+
+  private Session finalizeLogin(
+      Connection connection, Account account, Session candidate, LoginSuccessPacket success) {
     connection.setProtocolState(ProtocolState.CONFIGURATION);
     Session session =
         new Session(
@@ -118,8 +173,8 @@ public final class AuthenticationService {
             success.getProfileId(),
             success.getUsername(),
             account.type(),
-            Optional.empty(),
-            Optional.empty());
+            candidate.accessToken(),
+            candidate.expiresAt());
     logger.info("Login succeeded for account {} as {}", account.id(), session.username());
     eventBus.publishAsync(
         new LoginSucceededEvent(
@@ -136,6 +191,9 @@ public final class AuthenticationService {
       if (!offlineMode) {
         throw new AuthenticationException("Offline accounts are disabled by configuration");
       }
+      return;
+    }
+    if (account.type() == AccountType.MICROSOFT || account.type() == AccountType.CACHED_SESSION) {
       return;
     }
     throw new AuthenticationException(account.type() + " authentication is not implemented yet");

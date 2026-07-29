@@ -11,6 +11,10 @@ public final class LoginProtocolCodecs {
     return codec(0x00, DisconnectPacket::new);
   }
 
+  public static PacketCodec encryptionRequest() {
+    return codec(0x01, EncryptionRequestPacket::new);
+  }
+
   public static PacketCodec loginSuccess() {
     return codec(0x02, LoginSuccessPacket::new);
   }

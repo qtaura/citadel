@@ -23,8 +23,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.crypto.Cipher;
+import javax.crypto.CipherInputStream;
+import javax.crypto.CipherOutputStream;
+import javax.crypto.SecretKey;
 
-@SuppressWarnings("PMD.GodClass")
+@SuppressWarnings({"PMD.GodClass", "PMD.CouplingBetweenObjects"})
 public final class Connection implements io.citadel.api.network.Connection, Closeable {
 
   private final AtomicReference<ConnectionState> state;
@@ -211,6 +215,15 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
 
   public void addPacketHandler(PacketHandler handler) {
     packetHandlers.add(handler);
+  }
+
+  public void enableEncryption(SecretKey key) throws IOException {
+    Cipher encCipher =
+        io.citadel.core.auth.EncryptionHandler.createEncryptionCipher(key, Cipher.ENCRYPT_MODE);
+    Cipher decCipher =
+        io.citadel.core.auth.EncryptionHandler.createEncryptionCipher(key, Cipher.DECRYPT_MODE);
+    this.out = new DataOutputStream(new CipherOutputStream(socket.getOutputStream(), encCipher));
+    this.in = new DataInputStream(new CipherInputStream(socket.getInputStream(), decCipher));
   }
 
   public void setProtocolState(ProtocolState newState) {

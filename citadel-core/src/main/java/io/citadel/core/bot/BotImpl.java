@@ -24,6 +24,7 @@ import io.citadel.api.service.ConfigurationSection;
 import io.citadel.api.service.Logger;
 import io.citadel.api.world.WorldManager;
 import io.citadel.core.auth.AuthenticationService;
+import io.citadel.core.auth.MicrosoftAuthenticationProvider;
 import io.citadel.core.net.Connection;
 import io.citadel.core.net.Packet;
 import io.citadel.core.net.PacketFraming;
@@ -34,7 +35,9 @@ import io.citadel.core.net.protocol.KeepAlivePacket;
 import io.citadel.core.net.protocol.play.PlayProtocolCodecs;
 import io.citadel.core.world.WorldManagerImpl;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -65,6 +68,7 @@ public final class BotImpl implements Bot {
   private final AccountManager accountManager;
   private final ProxyManager proxyManager;
   private final AuthenticationService authenticationService;
+  private final MicrosoftAuthenticationProvider microsoftAuthProvider;
   private final EventBus eventBus;
   private final Logger logger;
   private final int connectTimeout;
@@ -110,6 +114,7 @@ public final class BotImpl implements Bot {
     this.serverPort = config.getInt("networking.server.port", 25565);
     this.reconnectPolicy = loadReconnectPolicy(config);
     this.worldManager = new WorldManagerImpl(botId, accountId, eventBus, logger);
+    this.microsoftAuthProvider = new MicrosoftAuthenticationProvider(logger);
     this.state = new AtomicReference<>(BotState.CREATED);
     this.reconnectAttempt = new AtomicInteger(0);
     this.lock = new Object();
@@ -139,6 +144,7 @@ public final class BotImpl implements Bot {
     this.serverPort = serverPort;
     this.reconnectPolicy = ReconnectPolicy.defaults();
     this.worldManager = new WorldManagerImpl(botId, accountId, eventBus, logger);
+    this.microsoftAuthProvider = new MicrosoftAuthenticationProvider(logger);
     this.state = new AtomicReference<>(BotState.CREATED);
     this.reconnectAttempt = new AtomicInteger(0);
     this.lock = new Object();
@@ -243,6 +249,7 @@ public final class BotImpl implements Bot {
       if (account == null) {
         throw new IllegalStateException("Account not found: " + accountId);
       }
+      Session candidate = resolveCandidateSession(account, null);
       if (!transitionTo(BotState.CONNECTING)) {
         return;
       }
@@ -254,7 +261,7 @@ public final class BotImpl implements Bot {
       if (!transitionTo(BotState.AUTHENTICATING)) {
         return;
       }
-      session = authenticationService.login(connection, account);
+      session = authenticationService.login(connection, account, candidate);
       if (!transitionTo(BotState.RUNNING)) {
         return;
       }
@@ -374,6 +381,26 @@ public final class BotImpl implements Bot {
     }
   }
 
+  private Session resolveCandidateSession(Account acct, Session existing) {
+    if (acct.type() == io.citadel.api.account.AccountType.MICROSOFT) {
+      if (existing != null && !isSessionExpired(existing)) {
+        return existing;
+      }
+      if (existing != null && isSessionExpired(existing)) {
+        Optional<Session> refreshed = microsoftAuthProvider.refresh(existing);
+        if (refreshed.isPresent()) {
+          return refreshed.get();
+        }
+      }
+      return microsoftAuthProvider.authenticate(acct);
+    }
+    return Session.offline(acct);
+  }
+
+  private static boolean isSessionExpired(Session session) {
+    return session.expiresAt().map(exp -> exp.isBefore(Instant.now())).orElse(false);
+  }
+
   void initiateReconnect() {
     synchronized (lock) {
       BotState current = state.get();
@@ -447,7 +474,8 @@ public final class BotImpl implements Bot {
         newConn.close();
         return;
       }
-      newSession = authenticationService.login(newConn, account);
+      Session reconnectCandidate = resolveCandidateSession(account, session);
+      newSession = authenticationService.login(newConn, account, reconnectCandidate);
       if (!finalizeReconnectState(newConn, newSession)) {
         newConn.close();
         return;
@@ -601,6 +629,7 @@ public final class BotImpl implements Bot {
     this.serverPort = serverPort;
     this.reconnectPolicy = Objects.requireNonNull(reconnectPolicy, "reconnectPolicy");
     this.worldManager = new WorldManagerImpl(botId, accountId, eventBus, logger);
+    this.microsoftAuthProvider = new MicrosoftAuthenticationProvider(logger);
     this.state = new AtomicReference<>(BotState.CREATED);
     this.reconnectAttempt = new AtomicInteger(0);
     this.lock = new Object();

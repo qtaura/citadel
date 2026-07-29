@@ -5,6 +5,7 @@ dependencies {
     implementation(libs.snakeyaml)
     implementation(libs.slf4j.api)
     implementation(libs.logback.classic)
+    implementation(libs.gson)
 
     testImplementation(libs.junit.jupiter.api)
     testRuntimeOnly(libs.junit.jupiter.engine)

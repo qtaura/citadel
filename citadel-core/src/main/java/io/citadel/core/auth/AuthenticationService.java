@@ -14,7 +14,6 @@ import io.citadel.core.net.Connection;
 import io.citadel.core.net.NetworkClient;
 import io.citadel.core.net.Packet;
 import io.citadel.core.net.PacketRegistry;
-import io.citadel.core.net.VarInt;
 import io.citadel.core.net.protocol.DisconnectPacket;
 import io.citadel.core.net.protocol.EncryptionRequestPacket;
 import io.citadel.core.net.protocol.EncryptionResponsePacket;
@@ -137,7 +136,6 @@ public final class AuthenticationService {
       System.out.println("[LOGIN] Waiting for LoginSuccess after encryption...");
       System.out.flush();
       Packet loginPacket = connection.receivePacket(loginRegistry);
-      // Handle SetCompression if sent
       while (loginPacket instanceof SetCompressionPacket) {
         System.out.println("[LOGIN] Received SetCompression, waiting for next packet...");
         System.out.flush();
@@ -156,6 +154,9 @@ public final class AuthenticationService {
             "Unexpected login packet: " + loginPacket.getClass().getSimpleName(),
             null);
       }
+      connection.sendPacket(new LoginAcknowledgedPacket());
+      System.out.println("[LOGIN] Sent LoginAcknowledged");
+      System.out.flush();
       return finalizeLogin(connection, account, candidate, success);
     }
 
@@ -175,40 +176,9 @@ public final class AuthenticationService {
       throws IOException, AuthenticationException {
     EncryptionHandler encHandler =
         new EncryptionHandler(encryptReq.getPublicKey(), encryptReq.getVerifyToken(), encryptReq.getServerId());
-    boolean hasSignature = encryptReq.shouldAuthenticate() && candidate.keyPair().isPresent();
-    byte[] encSharedSecret = encHandler.getEncryptedSharedSecret();
-    byte[] encVerifyToken = encHandler.getEncryptedVerifyToken();
-    long salt = 0L;
-    byte[] signature = new byte[0];
-    if (hasSignature) {
-      try {
-        java.io.ByteArrayInputStream bin = new java.io.ByteArrayInputStream(candidate.keyPair().get());
-        java.io.DataInputStream din = new java.io.DataInputStream(bin);
-        int privLen = VarInt.read(din);
-        byte[] privBytes = new byte[privLen];
-        din.readFully(privBytes);
-        int pubLen = VarInt.read(din);
-        byte[] pubBytes = new byte[pubLen];
-        din.readFully(pubBytes);
-        java.security.KeyFactory kf = java.security.KeyFactory.getInstance("RSA");
-        java.security.PrivateKey privKey = kf.generatePrivate(new java.security.spec.PKCS8EncodedKeySpec(privBytes));
-        salt = java.util.concurrent.ThreadLocalRandom.current().nextLong();
-        java.security.Signature sig = java.security.Signature.getInstance("SHA256withRSA");
-        sig.initSign(privKey);
-        java.nio.ByteBuffer saltBuf = java.nio.ByteBuffer.allocate(8);
-        saltBuf.putLong(salt);
-        sig.update(saltBuf.array());
-        signature = sig.sign();
-        System.out.println("[AUTH] Generated signature (salt=" + salt + ")");
-        System.out.flush();
-      } catch (Exception e) {
-        System.out.println("[AUTH] Failed to generate signature: " + e.getMessage());
-        System.out.flush();
-        hasSignature = false;
-      }
-    }
     connection.sendPacket(
-        new EncryptionResponsePacket(encSharedSecret, encVerifyToken, salt, signature));
+        new EncryptionResponsePacket(
+            encHandler.getEncryptedSharedSecret(), encHandler.getEncryptedVerifyToken()));
     connection.enableEncryption(encHandler.getSharedSecret());
     String serverId = encHandler.computeServerId();
     System.out.println("[AUTH] Server ID hash: " + serverId);
@@ -229,10 +199,8 @@ public final class AuthenticationService {
   }
 
   private Session finalizeLogin(
-      Connection connection, Account account, Session candidate, LoginSuccessPacket success)
-      throws IOException {
+      Connection connection, Account account, Session candidate, LoginSuccessPacket success) {
     connection.setProtocolState(ProtocolState.CONFIGURATION);
-    connection.sendPacket(new LoginAcknowledgedPacket());
     Session session =
         new Session(
             account.id(),

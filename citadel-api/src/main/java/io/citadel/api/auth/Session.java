@@ -15,8 +15,7 @@ public record Session(
     String username,
     AccountType accountType,
     Optional<String> accessToken,
-    Optional<Instant> expiresAt,
-    Optional<byte[]> keyPair) {
+    Optional<Instant> expiresAt) {
 
   /** Creates a validated session value. */
   public Session {
@@ -26,17 +25,6 @@ public record Session(
     accountType = Objects.requireNonNull(accountType, "accountType");
     accessToken = Objects.requireNonNull(accessToken, "accessToken");
     expiresAt = Objects.requireNonNull(expiresAt, "expiresAt");
-    keyPair = Objects.requireNonNull(keyPair, "keyPair");
-  }
-
-  public Session(
-      String accountId,
-      UUID profileId,
-      String username,
-      AccountType accountType,
-      Optional<String> accessToken,
-      Optional<Instant> expiresAt) {
-    this(accountId, profileId, username, accountType, accessToken, expiresAt, Optional.empty());
   }
 
   /** Creates a deterministic offline session for an account. */

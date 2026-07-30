@@ -2,14 +2,9 @@ networking:
   server:
     host: "play.6b6t.org"
     port: 25565
-  connect_timeout: 30000
-  read_timeout: 30000
 
 authentication:
   offline_mode: false
-
-connection:
-  login_timeout: 30000
 
 accounts:
   my_main:

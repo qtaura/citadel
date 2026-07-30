@@ -1,9 +1,7 @@
 networking:
   server:
-    host: "8b8t.org"
+    host: "play.6b6t.org"
     port: 25565
-  connect_timeout: 15000
-  read_timeout: 15000
 
 authentication:
   offline_mode: false

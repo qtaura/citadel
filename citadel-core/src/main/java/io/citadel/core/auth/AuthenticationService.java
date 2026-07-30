@@ -168,9 +168,17 @@ public final class AuthenticationService {
             encHandler.getEncryptedSharedSecret(), encHandler.getEncryptedVerifyToken()));
     connection.enableEncryption(encHandler.getSharedSecret());
     String serverId = encHandler.computeServerId();
+    System.out.println("[AUTH] Server ID hash: " + serverId);
+    System.out.println("[AUTH] Profile ID: " + candidate.profileId());
+    System.out.println("[AUTH] Access token available: " + candidate.accessToken().isPresent());
+    System.out.flush();
     if (candidate.accessToken().isPresent()) {
-      sessionServerClient.joinServer(
-          candidate.accessToken().get(), candidate.profileId(), serverId);
+      String token = candidate.accessToken().get();
+      System.out.println("[AUTH] Token (" + token.length() + " chars): " + token.substring(0, Math.min(40, token.length())) + "...");
+      System.out.flush();
+      sessionServerClient.joinServer(token, candidate.profileId(), serverId);
+      System.out.println("[AUTH] Session server join completed successfully");
+      System.out.flush();
     } else {
       logger.warn(
           "Server requires encryption but no access token available (account: {})", account.id());

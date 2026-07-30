@@ -11,12 +11,22 @@ public final class EncryptionResponsePacket implements Packet {
 
   private byte[] sharedSecret;
   private byte[] verifyToken;
+  private boolean hasSignature;
+  private long salt;
+  private byte[] signature;
 
   public EncryptionResponsePacket() {}
 
   public EncryptionResponsePacket(byte[] sharedSecret, byte[] verifyToken) {
+    this(sharedSecret, verifyToken, 0L, new byte[0]);
+  }
+
+  public EncryptionResponsePacket(byte[] sharedSecret, byte[] verifyToken, long salt, byte[] signature) {
     this.sharedSecret = sharedSecret.clone();
     this.verifyToken = verifyToken.clone();
+    this.hasSignature = signature.length > 0;
+    this.salt = salt;
+    this.signature = signature.clone();
   }
 
   public byte[] getSharedSecret() {
@@ -38,6 +48,11 @@ public final class EncryptionResponsePacket implements Packet {
     out.write(sharedSecret);
     VarInt.write(verifyToken.length, out);
     out.write(verifyToken);
+    if (hasSignature) {
+      out.writeLong(salt);
+      VarInt.write(signature.length, out);
+      out.write(signature);
+    }
   }
 
   @Override
@@ -48,5 +63,7 @@ public final class EncryptionResponsePacket implements Packet {
     int tokenLen = VarInt.read(in);
     this.verifyToken = new byte[tokenLen];
     in.readFully(verifyToken);
+    this.hasSignature = false;
+    this.signature = new byte[0];
   }
 }

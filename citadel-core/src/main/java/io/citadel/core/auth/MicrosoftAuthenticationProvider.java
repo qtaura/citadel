@@ -5,6 +5,7 @@ import io.citadel.api.account.AccountType;
 import io.citadel.api.auth.AuthenticationProvider;
 import io.citadel.api.auth.Session;
 import io.citadel.api.service.Logger;
+import io.citadel.core.net.VarInt;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
@@ -56,6 +57,26 @@ public final class MicrosoftAuthenticationProvider implements AuthenticationProv
       var profile = authManager.getMinecraftProfile().getUpToDate();
       System.out.println("[AUTH] Got profile: " + profile.getName());
       System.out.flush();
+      byte[] keyPairBytes = null;
+      try {
+        var certs = authManager.getMinecraftPlayerCertificates().getUpToDate();
+        java.security.KeyPair kp = certs.getKeyPair();
+        java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+        java.io.DataOutputStream dout = new java.io.DataOutputStream(buf);
+        byte[] priv = kp.getPrivate().getEncoded();
+        byte[] pub = kp.getPublic().getEncoded();
+        VarInt.write(priv.length, dout);
+        dout.write(priv);
+        VarInt.write(pub.length, dout);
+        dout.write(pub);
+        dout.flush();
+        keyPairBytes = buf.toByteArray();
+        System.out.println("[AUTH] Got player certificates");
+        System.out.flush();
+      } catch (Exception e) {
+        System.out.println("[AUTH] No player certificates (continuing without)");
+        System.out.flush();
+      }
       logger.info(
           "Microsoft authentication succeeded for account {} as {}",
           account.id(),
@@ -66,7 +87,8 @@ public final class MicrosoftAuthenticationProvider implements AuthenticationProv
           profile.getName(),
           AccountType.MICROSOFT,
           Optional.of(mcToken.getToken()),
-          Optional.of(Instant.ofEpochMilli(mcToken.getExpireTimeMs())));
+          Optional.of(Instant.ofEpochMilli(mcToken.getExpireTimeMs())),
+          Optional.ofNullable(keyPairBytes));
     } catch (Exception e) {
       System.out.println("[ERROR] Microsoft authentication failed: " + e.getMessage());
       e.printStackTrace(System.out);

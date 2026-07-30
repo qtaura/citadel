@@ -189,8 +189,12 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
 
   public Packet receivePacket(PacketRegistry registry) throws IOException {
     ensureConnected();
+    System.out.println("[CONN] Reading frame...");
+    System.out.flush();
     PacketFraming.FramedPacket frame = PacketFraming.readFrame(in);
     int packetId = frame.getPacketId();
+    System.out.println("[CONN] Got packet ID: 0x" + Integer.toHexString(packetId));
+    System.out.flush();
     PacketCodec codec = registry.getCodec(packetId);
     if (codec == null) {
       throw new PacketFraming.UnknownPacketException(
@@ -199,6 +203,8 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
               + " in state "
               + protocolState.get());
     }
+    System.out.println("[CONN] Decoding packet...");
+    System.out.flush();
     Packet packet = PacketFraming.decode(packetId, frame.getPayload(), codec);
     logger.debug(
         "Received packet id=0x{} size={}",

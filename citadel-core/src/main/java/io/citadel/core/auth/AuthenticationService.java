@@ -78,6 +78,8 @@ public final class AuthenticationService {
 
     try {
       connection.setReadTimeout(loginTimeout);
+      System.out.println("[LOGIN] Sending Handshake...");
+      System.out.flush();
       connection.sendPacket(
           new HandshakePacket(
               NetworkClient.MINECRAFT_PROTOCOL_VERSION,
@@ -85,7 +87,11 @@ public final class AuthenticationService {
               connection.getPort(),
               2));
       connection.setProtocolState(ProtocolState.LOGIN);
+      System.out.println("[LOGIN] Sending LoginStart...");
+      System.out.flush();
       connection.sendPacket(new LoginStartPacket(candidate.username(), candidate.profileId()));
+      System.out.println("[LOGIN] Waiting for server response...");
+      System.out.flush();
       return handleLoginSequence(connection, account, candidate);
     } catch (SocketTimeoutException e) {
       throw fail(connection, account, "Login timed out", e);
@@ -105,6 +111,8 @@ public final class AuthenticationService {
   @SuppressWarnings("PMD.CyclomaticComplexity")
   private Session handleLoginSequence(Connection connection, Account account, Session candidate)
       throws IOException, AuthenticationException {
+    System.out.println("[LOGIN] Receiving first login packet...");
+    System.out.flush();
     Packet firstPacket = connection.receivePacket(loginRegistry);
 
     if (firstPacket instanceof DisconnectPacket disconnect) {
@@ -120,9 +128,14 @@ public final class AuthenticationService {
     }
 
     if (firstPacket instanceof EncryptionRequestPacket) {
+      System.out.println("[LOGIN] Waiting for LoginSuccess after encryption...");
+      System.out.flush();
       Packet loginPacket = connection.receivePacket(loginRegistry);
       if (loginPacket instanceof DisconnectPacket disconnect) {
-        throw fail(connection, account, "Server disconnected: " + disconnect.getReasonJson(), null);
+        String reason = disconnect.getReasonJson();
+        System.out.println("[LOGIN] Server disconnected: " + reason);
+        System.out.flush();
+        throw fail(connection, account, "Server disconnected: " + reason, null);
       }
       if (!(loginPacket instanceof LoginSuccessPacket success)) {
         throw fail(

@@ -33,18 +33,29 @@ public final class MicrosoftAuthenticationProvider implements AuthenticationProv
   public Session authenticate(Account account) {
     logger.info("Starting Microsoft authentication for account {}", account.id());
     try {
+      System.out.println("[AUTH] Requesting device code...");
+      System.out.flush();
       JavaAuthManager authManager =
           JavaAuthManager.create(httpClient)
               .login(
                   DeviceCodeMsaAuthService::new,
                   (Consumer<MsaDeviceCode>)
                       deviceCode -> {
-                        logger.info(
-                            "Open {} in your browser and sign in with your Microsoft account.",
-                            deviceCode.getDirectVerificationUri());
+                        String url = deviceCode.getDirectVerificationUri();
+                        System.out.println("\n========================================");
+                        System.out.println("Open this URL in your browser and sign in:");
+                        System.out.println(url);
+                        System.out.println("========================================\n");
+                        System.out.flush();
                       });
+      System.out.println("[AUTH] Device code flow complete, getting tokens...");
+      System.out.flush();
       var mcToken = authManager.getMinecraftToken().getUpToDate();
+      System.out.println("[AUTH] Got Minecraft token");
+      System.out.flush();
       var profile = authManager.getMinecraftProfile().getUpToDate();
+      System.out.println("[AUTH] Got profile: " + profile.getName());
+      System.out.flush();
       logger.info(
           "Microsoft authentication succeeded for account {} as {}",
           account.id(),
@@ -57,6 +68,9 @@ public final class MicrosoftAuthenticationProvider implements AuthenticationProv
           Optional.of(mcToken.getToken()),
           Optional.of(Instant.ofEpochMilli(mcToken.getExpireTimeMs())));
     } catch (Exception e) {
+      System.out.println("[ERROR] Microsoft authentication failed: " + e.getMessage());
+      e.printStackTrace(System.out);
+      System.out.flush();
       throw new RuntimeException(
           "Microsoft authentication failed for account " + account.id() + ": " + e.getMessage(), e);
     }

@@ -250,18 +250,26 @@ public final class BotImpl implements Bot {
         throw new IllegalStateException("Account not found: " + accountId);
       }
       Session candidate = resolveCandidateSession(account, null);
+      System.out.println("[BOT] Resolved candidate session for " + candidate.username());
+      System.out.flush();
       if (!transitionTo(BotState.CONNECTING)) {
         return;
       }
       ProxyDefinition proxyDef = resolveProxy(account);
+      System.out.println("[BOT] Connecting to " + serverHost + ":" + serverPort + " ...");
+      System.out.flush();
       connection =
           new Connection(
               serverHost, serverPort, connectTimeout, readTimeout, eventBus, logger, proxyDef);
       connection.connect();
+      System.out.println("[BOT] Connected, authenticating...");
+      System.out.flush();
       if (!transitionTo(BotState.AUTHENTICATING)) {
         return;
       }
       session = authenticationService.login(connection, account, candidate);
+      System.out.println("[BOT] Login complete, transitioning to RUNNING...");
+      System.out.flush();
       if (!transitionTo(BotState.RUNNING)) {
         return;
       }

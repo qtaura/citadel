@@ -19,6 +19,7 @@ import io.citadel.core.net.protocol.DisconnectPacket;
 import io.citadel.core.net.protocol.EncryptionRequestPacket;
 import io.citadel.core.net.protocol.EncryptionResponsePacket;
 import io.citadel.core.net.protocol.HandshakePacket;
+import io.citadel.core.net.protocol.LoginAcknowledgedPacket;
 import io.citadel.core.net.protocol.LoginProtocolCodecs;
 import io.citadel.core.net.protocol.LoginStartPacket;
 import io.citadel.core.net.protocol.LoginSuccessPacket;
@@ -228,8 +229,10 @@ public final class AuthenticationService {
   }
 
   private Session finalizeLogin(
-      Connection connection, Account account, Session candidate, LoginSuccessPacket success) {
+      Connection connection, Account account, Session candidate, LoginSuccessPacket success)
+      throws IOException {
     connection.setProtocolState(ProtocolState.CONFIGURATION);
+    connection.sendPacket(new LoginAcknowledgedPacket());
     Session session =
         new Session(
             account.id(),

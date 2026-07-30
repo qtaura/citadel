@@ -124,6 +124,8 @@ public final class AuthenticationService {
     }
 
     if (firstPacket instanceof EncryptionRequestPacket encryptReq) {
+      System.out.println("[AUTH] Server requires authentication: " + encryptReq.shouldAuthenticate());
+      System.out.flush();
       handleEncryption(connection, account, candidate, encryptReq);
     }
 

@@ -41,6 +41,7 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
   private final Logger logger;
   private final ProxyDefinition proxy;
   private final java.util.List<PacketHandler> packetHandlers;
+  private int compressionThreshold;
 
   private Socket socket;
   private DataInputStream in;
@@ -74,6 +75,7 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
     this.logger = Objects.requireNonNull(logger, "logger");
     this.proxy = proxy;
     this.packetHandlers = new CopyOnWriteArrayList<>();
+    this.compressionThreshold = -1;
   }
 
   @Override
@@ -179,7 +181,7 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
   public void sendPacket(Packet packet) throws IOException {
     ensureConnected();
     int packetId = packet.getPacketId(protocolState.get());
-    byte[] frame = PacketFraming.encode(packetId, packet);
+    byte[] frame = PacketFraming.encode(packetId, packet, compressionThreshold);
     out.write(frame);
     out.flush();
     logger.debug("Sent packet id=0x{} size={}", Integer.toHexString(packetId), frame.length);
@@ -191,7 +193,7 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
     ensureConnected();
     System.out.println("[CONN] Reading frame...");
     System.out.flush();
-    PacketFraming.FramedPacket frame = PacketFraming.readFrame(in);
+    PacketFraming.FramedPacket frame = PacketFraming.readFrame(in, compressionThreshold);
     int packetId = frame.getPacketId();
     System.out.println("[CONN] Got packet ID: 0x" + Integer.toHexString(packetId));
     System.out.flush();
@@ -221,6 +223,10 @@ public final class Connection implements io.citadel.api.network.Connection, Clos
 
   public void addPacketHandler(PacketHandler handler) {
     packetHandlers.add(handler);
+  }
+
+  public void setCompressionThreshold(int threshold) {
+    this.compressionThreshold = threshold;
   }
 
   public void enableEncryption(SecretKey key) throws IOException {

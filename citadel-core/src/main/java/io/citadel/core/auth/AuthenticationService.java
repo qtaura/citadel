@@ -137,9 +137,10 @@ public final class AuthenticationService {
       System.out.println("[LOGIN] Waiting for LoginSuccess after encryption...");
       System.out.flush();
       Packet loginPacket = connection.receivePacket(loginRegistry);
-      while (loginPacket instanceof SetCompressionPacket) {
-        System.out.println("[LOGIN] Received SetCompression, waiting for next packet...");
+      while (loginPacket instanceof SetCompressionPacket scp) {
+        System.out.println("[LOGIN] Received SetCompression, threshold=" + scp.getThreshold());
         System.out.flush();
+        connection.setCompressionThreshold(scp.getThreshold());
         loginPacket = connection.receivePacket(loginRegistry);
       }
       if (loginPacket instanceof DisconnectPacket disconnect) {

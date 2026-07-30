@@ -127,7 +127,8 @@ public final class AuthenticationService {
     }
 
     if (firstPacket instanceof EncryptionRequestPacket encryptReq) {
-      System.out.println("[AUTH] Server requires authentication: " + encryptReq.shouldAuthenticate());
+      System.out.println(
+          "[AUTH] Server requires authentication: " + encryptReq.shouldAuthenticate());
       System.out.flush();
       handleEncryption(connection, account, candidate, encryptReq);
     }
@@ -175,7 +176,8 @@ public final class AuthenticationService {
       Connection connection, Account account, Session candidate, EncryptionRequestPacket encryptReq)
       throws IOException, AuthenticationException {
     EncryptionHandler encHandler =
-        new EncryptionHandler(encryptReq.getPublicKey(), encryptReq.getVerifyToken(), encryptReq.getServerId());
+        new EncryptionHandler(
+            encryptReq.getPublicKey(), encryptReq.getVerifyToken(), encryptReq.getServerId());
     connection.sendPacket(
         new EncryptionResponsePacket(
             encHandler.getEncryptedSharedSecret(), encHandler.getEncryptedVerifyToken()));
@@ -187,7 +189,12 @@ public final class AuthenticationService {
     System.out.flush();
     if (candidate.accessToken().isPresent()) {
       String token = candidate.accessToken().get();
-      System.out.println("[AUTH] Token (" + token.length() + " chars): " + token.substring(0, Math.min(40, token.length())) + "...");
+      System.out.println(
+          "[AUTH] Token ("
+              + token.length()
+              + " chars): "
+              + token.substring(0, Math.min(40, token.length()))
+              + "...");
       System.out.flush();
       sessionServerClient.joinServer(token, candidate.profileId(), serverId);
       System.out.println("[AUTH] Session server join completed successfully");

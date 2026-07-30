@@ -13,7 +13,7 @@ public final class EncryptionRequestPacket implements Packet {
   private String serverId;
   private byte[] publicKey;
   private byte[] verifyToken;
-  private boolean shouldAuthenticate;
+  private boolean authRequired;
 
   public EncryptionRequestPacket() {}
 
@@ -21,11 +21,12 @@ public final class EncryptionRequestPacket implements Packet {
     this(serverId, publicKey, verifyToken, false);
   }
 
-  public EncryptionRequestPacket(String serverId, byte[] publicKey, byte[] verifyToken, boolean shouldAuthenticate) {
+  public EncryptionRequestPacket(
+      String serverId, byte[] publicKey, byte[] verifyToken, boolean shouldAuthenticate) {
     this.serverId = serverId;
     this.publicKey = publicKey.clone();
     this.verifyToken = verifyToken.clone();
-    this.shouldAuthenticate = shouldAuthenticate;
+    this.authRequired = shouldAuthenticate;
   }
 
   public String getServerId() {
@@ -41,7 +42,7 @@ public final class EncryptionRequestPacket implements Packet {
   }
 
   public boolean shouldAuthenticate() {
-    return shouldAuthenticate;
+    return authRequired;
   }
 
   @Override
@@ -64,9 +65,9 @@ public final class EncryptionRequestPacket implements Packet {
     this.verifyToken = new byte[tokenLen];
     in.readFully(verifyToken);
     try {
-      this.shouldAuthenticate = in.readBoolean();
+      this.authRequired = in.readBoolean();
     } catch (Exception e) {
-      this.shouldAuthenticate = false;
+      this.authRequired = false;
     }
   }
 }

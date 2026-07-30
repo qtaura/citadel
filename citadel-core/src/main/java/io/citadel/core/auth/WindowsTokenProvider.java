@@ -44,9 +44,10 @@ final class WindowsTokenProvider {
       BufferedReader reader =
           new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8));
       StringBuilder output = new StringBuilder();
-      String line;
-      while ((line = reader.readLine()) != null) {
+      String line = reader.readLine();
+      while (line != null) {
         output.append(line);
+        line = reader.readLine();
       }
       p.waitFor();
       String result = output.toString().trim();

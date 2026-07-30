@@ -8,8 +8,6 @@ import java.io.IOException;
 
 public final class LoginAcknowledgedPacket implements Packet {
 
-  public LoginAcknowledgedPacket() {}
-
   @Override
   public int getPacketId(ProtocolState state) {
     return 0x03;

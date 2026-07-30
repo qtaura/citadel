@@ -50,10 +50,12 @@ public final class MicrosoftAuthenticationProvider implements AuthenticationProv
                       });
       System.out.println("[AUTH] Device code flow complete, getting tokens...");
       System.out.flush();
-      var mcToken = authManager.getMinecraftToken().getUpToDate();
+      net.raphimc.minecraftauth.java.model.MinecraftToken mcToken =
+          authManager.getMinecraftToken().getUpToDate();
       System.out.println("[AUTH] Got Minecraft token");
       System.out.flush();
-      var profile = authManager.getMinecraftProfile().getUpToDate();
+      net.raphimc.minecraftauth.java.model.MinecraftProfile profile =
+          authManager.getMinecraftProfile().getUpToDate();
       System.out.println("[AUTH] Got profile: " + profile.getName());
       System.out.flush();
       logger.info(
@@ -79,9 +81,12 @@ public final class MicrosoftAuthenticationProvider implements AuthenticationProv
   @Override
   public Optional<Session> refresh(Session stale) {
     try {
-      JavaAuthManager authManager = JavaAuthManager.fromJson(httpClient, new com.google.gson.JsonObject());
-      var mcToken = authManager.getMinecraftToken().getUpToDate();
-      var profile = authManager.getMinecraftProfile().getUpToDate();
+      JavaAuthManager authManager =
+          JavaAuthManager.fromJson(httpClient, new com.google.gson.JsonObject());
+      net.raphimc.minecraftauth.java.model.MinecraftToken mcToken =
+          authManager.getMinecraftToken().getUpToDate();
+      net.raphimc.minecraftauth.java.model.MinecraftProfile profile =
+          authManager.getMinecraftProfile().getUpToDate();
       logger.info("Session refreshed for account {}", stale.accountId());
       return Optional.of(
           new Session(
@@ -92,7 +97,8 @@ public final class MicrosoftAuthenticationProvider implements AuthenticationProv
               Optional.of(mcToken.getToken()),
               Optional.of(Instant.ofEpochMilli(mcToken.getExpireTimeMs()))));
     } catch (Exception e) {
-      logger.warn("Failed to refresh session for account {}: {}", stale.accountId(), e.getMessage());
+      logger.warn(
+          "Failed to refresh session for account {}: {}", stale.accountId(), e.getMessage());
       return Optional.empty();
     }
   }

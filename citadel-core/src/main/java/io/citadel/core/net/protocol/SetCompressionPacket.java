@@ -11,8 +11,6 @@ public final class SetCompressionPacket implements Packet {
 
   private int threshold;
 
-  public SetCompressionPacket() {}
-
   public int getThreshold() {
     return threshold;
   }

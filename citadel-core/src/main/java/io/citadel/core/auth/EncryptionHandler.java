@@ -1,6 +1,5 @@
 package io.citadel.core.auth;
 
-import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -14,9 +13,15 @@ public final class EncryptionHandler {
   private final byte[] serverPublicKeyBytes;
   private final byte[] encryptedSharedSecret;
   private final byte[] encryptedVerifyToken;
+  private final String serverIdStr;
 
   public EncryptionHandler(byte[] serverPublicKeyBytes, byte[] verifyToken) {
+    this(serverPublicKeyBytes, verifyToken, "");
+  }
+
+  public EncryptionHandler(byte[] serverPublicKeyBytes, byte[] verifyToken, String serverIdStr) {
     try {
+      this.serverIdStr = serverIdStr;
       this.serverPublicKeyBytes = serverPublicKeyBytes.clone();
       this.sharedSecret = generateSharedSecret();
       java.security.PublicKey serverKey = readPublicKey(serverPublicKeyBytes);
@@ -43,15 +48,11 @@ public final class EncryptionHandler {
 
   public String computeServerId() {
     try {
-      MessageDigest sha1 = MessageDigest.getInstance("SHA-1");
+      java.security.MessageDigest sha1 = java.security.MessageDigest.getInstance("SHA-1");
+      sha1.update(serverIdStr.getBytes(java.nio.charset.StandardCharsets.ISO_8859_1));
       sha1.update(sharedSecret.getEncoded());
       sha1.update(serverPublicKeyBytes);
-      byte[] hash = sha1.digest();
-      String hex = new java.math.BigInteger(hash).toString(16);
-      if (hex.startsWith("-")) {
-        return "-" + hex.substring(1);
-      }
-      return hex;
+      return new java.math.BigInteger(sha1.digest()).toString(16);
     } catch (NoSuchAlgorithmException e) {
       throw new RuntimeException("SHA-1 not available", e);
     }

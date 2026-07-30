@@ -162,7 +162,7 @@ public final class AuthenticationService {
       Connection connection, Account account, Session candidate, EncryptionRequestPacket encryptReq)
       throws IOException, AuthenticationException {
     EncryptionHandler encHandler =
-        new EncryptionHandler(encryptReq.getPublicKey(), encryptReq.getVerifyToken());
+        new EncryptionHandler(encryptReq.getPublicKey(), encryptReq.getVerifyToken(), encryptReq.getServerId());
     connection.sendPacket(
         new EncryptionResponsePacket(
             encHandler.getEncryptedSharedSecret(), encHandler.getEncryptedVerifyToken()));

@@ -178,10 +178,6 @@ public final class AuthenticationService {
     EncryptionHandler encHandler =
         new EncryptionHandler(
             encryptReq.getPublicKey(), encryptReq.getVerifyToken(), encryptReq.getServerId());
-    connection.sendPacket(
-        new EncryptionResponsePacket(
-            encHandler.getEncryptedSharedSecret(), encHandler.getEncryptedVerifyToken()));
-    connection.enableEncryption(encHandler.getSharedSecret());
     String serverId = encHandler.computeServerId();
     System.out.println("[AUTH] Server ID hash: " + serverId);
     System.out.println("[AUTH] Profile ID: " + candidate.profileId());
@@ -203,6 +199,10 @@ public final class AuthenticationService {
       logger.warn(
           "Server requires encryption but no access token available (account: {})", account.id());
     }
+    connection.sendPacket(
+        new EncryptionResponsePacket(
+            encHandler.getEncryptedSharedSecret(), encHandler.getEncryptedVerifyToken()));
+    connection.enableEncryption(encHandler.getSharedSecret());
   }
 
   private Session finalizeLogin(

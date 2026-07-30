@@ -19,6 +19,10 @@ public final class LoginProtocolCodecs {
     return codec(0x02, LoginSuccessPacket::new);
   }
 
+  public static PacketCodec setCompression() {
+    return codec(0x03, SetCompressionPacket::new);
+  }
+
   private static PacketCodec codec(int packetId, PacketFactory factory) {
     return new PacketCodec() {
       @Override

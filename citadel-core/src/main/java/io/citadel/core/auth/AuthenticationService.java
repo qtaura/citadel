@@ -22,6 +22,7 @@ import io.citadel.core.net.protocol.HandshakePacket;
 import io.citadel.core.net.protocol.LoginProtocolCodecs;
 import io.citadel.core.net.protocol.LoginStartPacket;
 import io.citadel.core.net.protocol.LoginSuccessPacket;
+import io.citadel.core.net.protocol.SetCompressionPacket;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.util.Objects;
@@ -48,6 +49,7 @@ public final class AuthenticationService {
             .register(0x00, LoginProtocolCodecs.disconnect())
             .register(0x01, LoginProtocolCodecs.encryptionRequest())
             .register(0x02, LoginProtocolCodecs.loginSuccess())
+            .register(0x03, LoginProtocolCodecs.setCompression())
             .build();
     this.sessionServerClient = new SessionServerClient();
   }
@@ -134,6 +136,12 @@ public final class AuthenticationService {
       System.out.println("[LOGIN] Waiting for LoginSuccess after encryption...");
       System.out.flush();
       Packet loginPacket = connection.receivePacket(loginRegistry);
+      // Handle SetCompression if sent
+      while (loginPacket instanceof SetCompressionPacket) {
+        System.out.println("[LOGIN] Received SetCompression, waiting for next packet...");
+        System.out.flush();
+        loginPacket = connection.receivePacket(loginRegistry);
+      }
       if (loginPacket instanceof DisconnectPacket disconnect) {
         String reason = disconnect.getReasonJson();
         System.out.println("[LOGIN] Server disconnected: " + reason);
